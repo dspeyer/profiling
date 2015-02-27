@@ -1,13 +1,69 @@
 #!/usr/bin/python
 
+from collections import defaultdict
+import gtk
 import re
 import svgwrite
-from collections import defaultdict
 
 class struct:
     def __init__(self,**kwargs):
         for k in kwargs:
             setattr(self,k,kwargs[k])
+
+
+class AppWindow:
+    def __init__(self):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.connect("delete_event",gtk.main_quit)
+        self.window.connect("destroy_event",gtk.main_quit)
+
+        mainVBox = gtk.VBox()
+        hbox = gtk.HBox()
+
+        self.toolbar = gtk.HBox()
+
+        vscroll = gtk.ScrolledWindow()
+        vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
+        vscroll.set_size_request(800,600)
+
+        hscroll = gtk.ScrolledWindow()
+        hscroll.set_policy(gtk.POLICY_ALWAYS, gtk.POLICY_NEVER)
+        hscroll.get_hscrollbar().set_child_visible(False)
+
+        self.legend = gtk.VBox()
+
+        self.content = gtk.DrawingArea()
+
+        self.hadj=adjustment=hscroll.get_hadjustment()
+        hscrollbar = gtk.HScrollbar(self.hadj)
+
+        self.window.add(mainVBox)
+        mainVBox.pack_start(self.toolbar, expand=False, fill=False)
+        mainVBox.pack_start(vscroll, expand=True, fill=True)
+        mainVBox.pack_start(hscrollbar, expand=False, fill=False)
+        vscroll.add_with_viewport(hbox)
+        hbox.pack_start(self.legend, expand=False, fill=False)
+        hbox.pack_start(hscroll, expand=True, fill=True)
+        hscroll.add_with_viewport(self.content)
+
+        self.content.realize()
+        self.gc = self.content.get_style().fg_gc[gtk.STATE_NORMAL]
+        self.white_gc = self.content.get_style().white_gc
+        colormap = self.content.get_colormap()
+        self.red_gc =  self.content.window.new_gc()
+        self.red_gc.copy(self.gc)
+        self.red_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=65535, green=0, blue=0))
+
+        self.pixmap = gtk.gdk.Pixmap(self.content.window, 1, 1)
+        self.content.connect('expose-event', self.expose_event)
+
+    def expose_event(self, widget, event):
+        x , y, width, height = event.area
+        widget.window.draw_drawable(self.gc, self.pixmap, x, y, x, y, width, height)
+        return False
+
+
+appWindow=AppWindow()
 
 evs = []
 
@@ -96,7 +152,7 @@ for ev in evs:
         links.append(struct(source=source, start=ev.time, target=target, end=ev.time))
         if source in switchedin and switchedin[source]!=-1:
             runs[oldp].append(struct(start=switchedin[source], end=ev.time))
-        switchedin[source]=-1                        
+        switchedin[source]=-1
     else:
         print 'ERROR: unhandled event "%s"'%ev.event
 
@@ -120,17 +176,17 @@ for l in links:
 
 # Assign heights to processes with a simple greedy algorithm
 heights={}
-h=20
+h=0
 p='swapper/0(0)'
 while True:
     heights[p]=h
-    h+=20
+    label=gtk.Label(p)
+    appWindow.legend.pack_start(label, expand=False, fill=False)
+    h+=label.size_request()[1]
     bestv=-1
     bestp=''
     for nextp in ps:
         if nextp in heights:
-            continue
-        if nextp[0:6]=='mysqld': # There are so many of these, they make things unreadable
             continue
         conn=connectedness[p][nextp]
         if conn>bestv:
@@ -140,30 +196,51 @@ while True:
         break
     p=bestp
 
+height=h
+width=2000
+
+
+
 def xfromt(t):
-    return 200+2000*(t-starttime)/(endtime-starttime)
+    return int(width*(t-starttime)/(endtime-starttime))
 
+def redraw():
+    appWindow.content.set_size_request(width,height)
+    appWindow.pixmap = gtk.gdk.Pixmap(appWindow.content.window, width, height)
+    appWindow.pixmap.draw_rectangle(appWindow.white_gc, True, 0, 0, width, height)
+    for p in runs:
+        if p not in heights:
+            continue
+        h=heights[p]
+        for r in runs[p]:
+            x1=xfromt(r.start)
+            x2=xfromt(r.end)
+            y1=h
+            y2=h+10
+            appWindow.pixmap.draw_rectangle(appWindow.gc, True, x1, y1, x2-x1, y2-y1)
+    for l in links:
+        if l.source not in heights or l.target not in heights:
+            continue
+        x1=xfromt(l.start)
+        y1=heights[l.source]+5
+        x2=xfromt(l.end)
+        y2=heights[l.target]+5
+        appWindow.pixmap.draw_line(appWindow.red_gc, x1, y1, x2, y2)
 
-# Now draw
-d=svgwrite.Drawing('perf.svg') # TODO: flexible file name
-for p in runs:
-    if p not in heights:
-        continue
-    h=heights[p]
-    d.add(d.text(p,insert=(0,h)))
-    for r in runs[p]:
-        x1=xfromt(r.start)
-        x2=xfromt(r.end)
-        y1=h-10
-        y2=h
-        d.add(d.rect(insert=(x1,y1), size=(x2-x1,y2-y1)))
-for l in links:
-    if l.source not in heights or l.target not in heights:
-        continue
-    x1=xfromt(l.start)
-    y1=heights[l.source]-5
-    x2=xfromt(l.end)
-    y2=heights[l.target]-5
-    d.add(d.line((x1,y1),(x2,y2),stroke=svgwrite.rgb(100, 0, 0, '%')))
+redraw()
 
-d.save()
+def zoom(ratio):
+    global width
+    width=int(ratio*width)
+    redraw()
+    appWindow.hadj.set_value(int(appWindow.hadj.get_value()*ratio))
+
+zi=gtk.Button('Zoom In')
+appWindow.toolbar.add(zi)
+zi.connect('clicked',lambda(event): zoom(2))
+zo=gtk.Button('Zoom Out')
+appWindow.toolbar.add(zo)
+zo.connect('clicked',lambda(event): zoom(0.5))
+
+appWindow.window.show_all()
+gtk.main()

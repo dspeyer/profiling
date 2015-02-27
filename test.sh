@@ -8,4 +8,3 @@ sudo perf script -f trace:pid,comm,time,event,trace,sym,ip,dso > perf.scr
 
 ./parse.py
 
-firefox perf.svg
