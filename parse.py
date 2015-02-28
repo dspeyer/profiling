@@ -92,7 +92,7 @@ for line in f:
                 ev.oldcomm=commbypid[ev.pid]
             else:
                 ev.oldcomm='unknown(%d)'%ev.pid
-        if ev.pid in commbypid:
+        elif ev.pid in commbypid:
             if (commbypid[ev.pid]!=ev.comm):
                 fake_ev=struct()
                 fake_ev.comm=ev.comm
