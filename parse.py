@@ -91,7 +91,17 @@ for line in f:
             if ev.pid in commbypid:
                 ev.oldcomm=commbypid[ev.pid]
             else:
-                continue
+                ev.oldcomm='unknown(%d)'%ev.pid
+        if ev.pid in commbypid:
+            if (commbypid[ev.pid]!=ev.comm):
+                fake_ev=struct()
+                fake_ev.comm=ev.comm
+                fake_ev.pid=ev.pid
+                fake_ev.time=ev.time
+                fake_ev.event='sched:sched_process_exec'
+                fake_ev.oldcomm=commbypid[ev.pid]
+                print "WARNING: deduced exec call by %d from %s to %s at %f" % (ev.pid, fake_ev.oldcomm, ev.comm, ev.time)
+                evs.append(fake_ev)
         commbypid[ev.pid]=ev.comm
         for i in args.split(' '):
             m=re.match('([a-zA-Z_]*)=(.*)',i)
@@ -151,8 +161,10 @@ for ev in evs:
         target='%s(%d)'%(ev.comm,ev.pid)
         links.append(struct(source=source, start=ev.time, target=target, end=ev.time))
         if source in switchedin and switchedin[source]!=-1:
-            runs[oldp].append(struct(start=switchedin[source], end=ev.time))
+            print 'making run for %s from %f to %f'%(source,switchedin[source],ev.time)
+            runs[source].append(struct(start=switchedin[source], end=ev.time))
         switchedin[source]=-1
+        switchedin[target]=ev.time
     else:
         print 'ERROR: unhandled event "%s"'%ev.event
 
