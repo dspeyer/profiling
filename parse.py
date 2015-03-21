@@ -79,7 +79,7 @@ for line in f:
         continue
     if line=='\n':
         continue
-    m=re.match('(.*[^ ]) +([0-9]*) +([0-9]*\\.[0-9]*): +([^ ]*): +(.*)',line)
+    m=re.match('(.*[^ ]) +([0-9]+) +([0-9]*\\.[0-9]*): +([^ ]*): +(.*)',line)
     if m:
         ev=struct()
         (ev.comm, ev.pid, ev.time, ev.event, args) = m.groups()
