@@ -129,6 +129,7 @@ for line in f:
 switchedin={}
 switchedout={}
 gotwoken={}
+woke={}
 switchedoutstack={}
 runs=defaultdict(lambda:[])
 sleeps=defaultdict(lambda:[])
@@ -169,12 +170,20 @@ for ev in evs:
             switchedoutstack[oldp]=ev.stack
         # Handle links
         if newp in gotwoken:
-            links.append(struct(source=gotwoken[newp].source, start=gotwoken[newp].start, target=newp, end=ev.time))
+            source=gotwoken[newp].source
+            links.append(struct(source=source, start=gotwoken[newp].start, target=newp, end=ev.time))
+            if source in switchedout and switchedout[source]>gotwoken[newp].start:
+                links[-1].outtime=switchedout[source]
+            else:
+                woke[source]=links[-1]
             del gotwoken[newp]
+        if oldp in woke:
+            woke[oldp].outtime=ev.time
+            del woke[oldp]
     elif ev.event=='sched:sched_wakeup':
         is_interrupt=False
         for frame in ev.stack:
-            if frame.function=='irq_exit':
+            if frame.function in ['irq_exit', 'apic_timer_interrupt']:
                 is_interrupt=True
                 break
         if is_interrupt:
@@ -205,6 +214,17 @@ for p in sleeps:
                 s.repframe=frame.function
                 break
             s.repframe='?'
+
+threshold=1e-4
+for l in links:
+    if 'outtime' in l.__dict__:
+        if l.outtime-l.start<threshold:
+            l.istransfer=True
+        else:
+            l.istransfer=False
+    else:
+        l.istransfer=False
+        print 'insufficient data'
 
 # This whole connectedness thing is just to pick heights that group related processes together
 ps=runs.keys()
@@ -286,7 +306,11 @@ def redraw():
         y1=heights[l.source]+5
         x2=xfromt(l.end)
         y2=heights[l.target]+5
-        appWindow.pixmap.draw_line(appWindow.red_gc, x1, y1, x2, y2)
+        if l.istransfer:
+            gc=appWindow.red_gc
+        else:
+            gc=appWindow.blue_gc
+        appWindow.pixmap.draw_line(gc, x1, y1, x2, y2)
     appWindow.content.queue_draw_area(0,0,width,height)
 
 redraw()
