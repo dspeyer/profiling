@@ -181,7 +181,16 @@ for ev in evs:
         if outlinks[oldp]:
             for outlink in outlinks[oldp]:
                 outlink.outtime=ev.time
+                outlink.sourcerun=runs[oldp][-1]
             outlinks[oldp]=[]
+        is_interrupt=False
+        for frame in ev.stack:
+            if frame.function in ['retint_careful']:
+                is_interrupt=True
+                break
+        if is_interrupt:
+            links.append(struct(source=oldp,target=oldp,start=ev.time,outtime=ev.time,sourcerun=runs[oldp][-1]))
+            inlinks[oldp].append(links[-1])
     elif ev.event=='sched:sched_wakeup':
         is_interrupt=False
         for frame in ev.stack:
@@ -250,15 +259,32 @@ for l in links:
     connectedness[l.source][l.target]+=1
     connectedness[l.target][l.source]+=1
 
+def rtag(run):
+    if 'tagged' in run.__dict__:
+        return
+    run.tagged=True
+    if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__:
+        rtag(run.inlink.sourcerun)
+
+def tag(widget, proc):
+    for p in runs:
+        for r in runs[p]:
+            if 'tagged' in r.__dict__:
+                del r.tagged
+    for r in runs[proc]:
+        rtag(r)
+    redraw()
+
 # Assign heights to processes with a simple greedy algorithm
 heights={}
 h=0
 p='swapper/0(0)'
 while True:
     heights[p]=h
-    label=gtk.Label(p)
-    appWindow.legend.pack_start(label, expand=False, fill=False)
-    h+=label.size_request()[1]
+    button=gtk.Button(label=p)
+    button.connect('clicked',tag,p)
+    appWindow.legend.pack_start(button, expand=False, fill=False)
+    h+=button.size_request()[1]
     bestv=-1
     bestp=''
     for nextp in ps:
@@ -293,7 +319,11 @@ def redraw():
             x2=xfromt(r.end)
             y1=h
             y2=h+10
-            appWindow.pixmap.draw_rectangle(appWindow.gc, True, x1, y1, x2-x1, y2-y1)
+            if 'tagged' in r.__dict__:
+                gc=appWindow.red_gc
+            else:
+                gc=appWindow.gc
+            appWindow.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, y2-y1)
     if show_sleeps:
         for p in sleeps:
             if p not in heights:
