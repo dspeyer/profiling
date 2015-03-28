@@ -15,16 +15,25 @@ void  __attribute__ ((noinline)) trigger(){
   realtrigger();
 }
 
+void __attribute__ ((noinline)) do_remaining_work(int* data){
+  for (int j=0; j<2000; j++) {
+    for (int i=1000; i<1024; i++) {
+      data[i]*=i;
+    }
+  }
+}
+
 void __attribute__ ((noinline)) work(){
   int data[1024];
   for (int i=0; i<1024; i++) {
     data[i]=i;
   }
-  for (int j=0; j<2000; j++) {
+  for (int j=0; j<1000; j++) {
     for (int i=0; i<1024; i++) {
       data[i]*=i;
     }
   }
+  do_remaining_work(data);
 }
 
 void __attribute__ ((noinline)) realmain(){
