@@ -5,6 +5,7 @@ import gtk
 import pango
 import re
 import svgwrite
+import code
 
 class struct:
     def __init__(self,**kwargs):
@@ -128,9 +129,9 @@ for line in f:
 
 switchedin={}
 switchedout={}
-gotwoken={}
-woke={}
 switchedoutstack={}
+inlinks=defaultdict(lambda:[])
+outlinks=defaultdict(lambda:[])
 runs=defaultdict(lambda:[])
 sleeps=defaultdict(lambda:[])
 links=[]
@@ -169,39 +170,48 @@ for ev in evs:
             switchedout[oldp]=ev.time
             switchedoutstack[oldp]=ev.stack
         # Handle links
-        if newp in gotwoken:
-            source=gotwoken[newp].source
-            links.append(struct(source=source, start=gotwoken[newp].start, target=newp, end=ev.time))
-            if source in switchedout and switchedout[source]>gotwoken[newp].start:
-                links[-1].outtime=switchedout[source]
-            else:
-                woke[source]=links[-1]
-            del gotwoken[newp]
-        if oldp in woke:
-            woke[oldp].outtime=ev.time
-            del woke[oldp]
+        if inlinks[newp]:
+            for inlink in inlinks[newp]:
+                inlink.end=ev.time
+        if inlinks[oldp]:
+            for inlink in inlinks[oldp]:
+                inlink.targetrun=runs[oldp][-1]
+                runs[oldp][-1].inlink=inlink
+            inlinks[oldp]=[]
+        if outlinks[oldp]:
+            for outlink in outlinks[oldp]:
+                outlink.outtime=ev.time
+            outlinks[oldp]=[]
     elif ev.event=='sched:sched_wakeup':
         is_interrupt=False
         for frame in ev.stack:
-            if frame.function in ['irq_exit', 'apic_timer_interrupt']:
+            if frame.function in ['do_IRQ', 'apic_timer_interrupt']:
                 is_interrupt=True
                 break
         if is_interrupt:
             continue
         source='%s(%s)'%(ev.comm,ev.pid)
         target='%s(%s)'%(ev.args.comm, ev.args.pid)
-        gotwoken[target]=struct(source=source, start=ev.time)
+        links.append(struct(source=source,target=target,start=ev.time))
+        inlinks[target].append(links[-1])
+        if ev.pid==int(ev.args.pid): #exactly what a process waking itself means is unclear, but it happens
+            links[-1].outtime=ev.time
+        else:
+            outlinks[source].append(links[-1])
     elif ev.event=='sched:sched_process_exec':
         source='%s(%d)'%(ev.oldcomm,ev.pid)
         target='%s(%d)'%(ev.comm,ev.pid)
-        links.append(struct(source=source, start=ev.time, target=target, end=ev.time))
+        links.append(struct(source=source, start=ev.time, target=target, end=ev.time,outtime=ev.time))
         if source in switchedin and switchedin[source]!=-1:
-            #print 'making run for %s from %f to %f'%(source,switchedin[source],ev.time)
             runs[source].append(struct(start=switchedin[source], end=ev.time))
+            links[-1].sourcerun=runs[source][-1]
+        inlinks[target].append(links[-1])
         switchedin[source]=-1
         switchedin[target]=ev.time
     else:
         print 'ERROR: unhandled event "%s"'%ev.event
+
+links = [link for link in links if 'end' in link.__dict__];
 
 for p in switchedin:
     if switchedin[p]!=-1:
@@ -224,7 +234,7 @@ for l in links:
             l.istransfer=False
     else:
         l.istransfer=False
-        print 'insufficient data'
+        print 'no outtime at %f (%s->%s)'%(l.start,l.source,l.target)
 
 # This whole connectedness thing is just to pick heights that group related processes together
 ps=runs.keys()
