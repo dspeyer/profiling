@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 import gtk
+import pango
 import re
 import svgwrite
 
@@ -53,9 +54,17 @@ class AppWindow:
         self.red_gc =  self.content.window.new_gc()
         self.red_gc.copy(self.gc)
         self.red_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=65535, green=0, blue=0))
+        self.blue_gc =  self.content.window.new_gc()
+        self.blue_gc.copy(self.gc)
+        self.blue_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=32768, green=32768, blue=65535))
 
         self.pixmap = gtk.gdk.Pixmap(self.content.window, 1, 1)
         self.content.connect('expose-event', self.expose_event)
+
+        self.context = self.window.create_pango_context()
+        fontdesc=self.context.get_font_description()
+        fontdesc.set_size(fontdesc.get_size()/2)
+        self.context.set_font_description(fontdesc)
 
     def expose_event(self, widget, event):
         x , y, width, height = event.area
@@ -100,7 +109,7 @@ for line in f:
                 fake_ev.time=ev.time
                 fake_ev.event='sched:sched_process_exec'
                 fake_ev.oldcomm=commbypid[ev.pid]
-                print "WARNING: deduced exec call by %d from %s to %s at %f" % (ev.pid, fake_ev.oldcomm, ev.comm, ev.time)
+                #print "WARNING: deduced exec call by %d from %s to %s at %f" % (ev.pid, fake_ev.oldcomm, ev.comm, ev.time)
                 evs.append(fake_ev)
         commbypid[ev.pid]=ev.comm
         for i in args.split(' '):
@@ -118,8 +127,11 @@ for line in f:
 # Now assemble the events into run blocks and links between them
 
 switchedin={}
+switchedout={}
 gotwoken={}
+switchedoutstack={}
 runs=defaultdict(lambda:[])
+sleeps=defaultdict(lambda:[])
 links=[]
 
 starttime=evs[0].time
@@ -129,6 +141,7 @@ for ev in evs:
     if ev.event=='sched:sched_switch':
         oldp='%s(%s)'%(ev.args.prev_comm,ev.args.prev_pid)
         newp='%s(%s)'%(ev.args.next_comm,ev.args.next_pid)
+        # Handle runs
         if oldp in switchedin:
             if switchedin[oldp]==-1:
                 print "ERROR: %s switched out without being in at %f" % (oldp, ev.time)
@@ -142,6 +155,19 @@ for ev in evs:
             print "ERROR: %s switched in twice (%f and %f)"%(newp,ev.time,switchedin[newp])
         else:
             switchedin[newp]=ev.time
+        # Handle sleeps (TODO: maybe unify with the above?)
+        if newp in switchedout:
+            if switchedout[newp]==-1:
+                print "ERROR: %s switched in without being out at %f" % (newp, ev.time)
+            else:
+                sleeps[newp].append(struct(start=switchedout[newp], end=ev.time, stack=switchedoutstack[newp]))
+                switchedout[newp]=-1
+        if oldp in switchedout and switchedout[oldp]!=-1:
+            print "ERROR: %s switched out twice (%f and %f)"%(oldp,ev.time,switchedout[oldp])
+        else:
+            switchedout[oldp]=ev.time
+            switchedoutstack[oldp]=ev.stack
+        # Handle links
         if newp in gotwoken:
             links.append(struct(source=gotwoken[newp].source, start=gotwoken[newp].start, target=newp, end=ev.time))
             del gotwoken[newp]
@@ -161,7 +187,7 @@ for ev in evs:
         target='%s(%d)'%(ev.comm,ev.pid)
         links.append(struct(source=source, start=ev.time, target=target, end=ev.time))
         if source in switchedin and switchedin[source]!=-1:
-            print 'making run for %s from %f to %f'%(source,switchedin[source],ev.time)
+            #print 'making run for %s from %f to %f'%(source,switchedin[source],ev.time)
             runs[source].append(struct(start=switchedin[source], end=ev.time))
         switchedin[source]=-1
         switchedin[target]=ev.time
@@ -171,6 +197,14 @@ for ev in evs:
 for p in switchedin:
     if switchedin[p]!=-1:
         runs[p].append(struct(start=switchedin[p], end=endtime))
+
+for p in sleeps:
+    for s in sleeps[p]:
+        for frame in s.stack:
+            if frame.file!='[kernel.kallsyms]':
+                s.repframe=frame.function
+                break
+            s.repframe='?'
 
 # This whole connectedness thing is just to pick heights that group related processes together
 ps=runs.keys()
@@ -211,7 +245,7 @@ while True:
 height=h
 width=2000
 
-
+show_sleeps=False
 
 def xfromt(t):
     return int(width*(t-starttime)/(endtime-starttime))
@@ -230,6 +264,21 @@ def redraw():
             y1=h
             y2=h+10
             appWindow.pixmap.draw_rectangle(appWindow.gc, True, x1, y1, x2-x1, y2-y1)
+    if show_sleeps:
+        for p in sleeps:
+            if p not in heights:
+                continue
+            h=heights[p]
+            for s in sleeps[p]:
+                x1=xfromt(s.start)
+                x2=xfromt(s.end)
+                y1=h
+                y2=h+10
+                appWindow.pixmap.draw_rectangle(appWindow.blue_gc, True, x1, y1, x2-x1, y2-y1)
+                if s.repframe:
+                    layout=pango.Layout(appWindow.context)
+                    layout.set_text(s.repframe)
+                    appWindow.pixmap.draw_layout(appWindow.gc, x1, y1, layout)
     for l in links:
         if l.source not in heights or l.target not in heights:
             continue
@@ -238,6 +287,7 @@ def redraw():
         x2=xfromt(l.end)
         y2=heights[l.target]+5
         appWindow.pixmap.draw_line(appWindow.red_gc, x1, y1, x2, y2)
+    appWindow.content.queue_draw_area(0,0,width,height)
 
 redraw()
 
@@ -253,6 +303,15 @@ zi.connect('clicked',lambda(event): zoom(2))
 zo=gtk.Button('Zoom Out')
 appWindow.toolbar.add(zo)
 zo.connect('clicked',lambda(event): zoom(0.5))
+
+def toggle_sleeps(event):
+    global show_sleeps
+    show_sleeps = not show_sleeps
+    redraw()
+
+ts=gtk.ToggleButton('Show Sleeps')
+ts.connect('clicked',toggle_sleeps)
+appWindow.toolbar.add(ts)
 
 appWindow.window.show_all()
 gtk.main()
