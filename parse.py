@@ -95,6 +95,9 @@ class AppWindow:
         widget.window.draw_drawable(self.gc, self.pixmap, x, y, x, y, width, height)
         return False
 
+    def getY(self,run):
+        depth = self.cumHeights[run.cp] + run.depth
+        return (self.toth-depth)*20
 
 appWindow=AppWindow(True)
 
@@ -301,13 +304,14 @@ for l in links:
     connectedness[l.source][l.target]+=1
     connectedness[l.target][l.source]+=1
 
-def rtag(run,depth,onstack,aw):
+def rtag(run,depth,cp,onstack,aw):
     if 'depth' in run.__dict__:
         return
-    if depth>aw.maxdepth:
-        aw.maxdepth=depth
+    if depth>aw.maxdepth[cp]:
+        aw.maxdepth[cp]=depth
     run.depth=depth
-    if 'inlink' in run.__dict__ and run.inlink.istransfer and 'sourcerun' in run.inlink.__dict__:
+    run.cp=cp
+    if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__:
         if run.inlink.source in onstack and run.inlink.source!=run.proc:
             return
         newstack=copy(onstack)
@@ -316,19 +320,30 @@ def rtag(run,depth,onstack,aw):
             newdepth=depth
         else:
             newdepth=depth+1
-        rtag(run.inlink.sourcerun,newdepth,newstack,aw)
+        if run.inlink.istransfer:
+            newcp=cp
+        else:
+            aw.maxcp+=1
+            newcp=aw.maxcp
+        rtag(run.inlink.sourcerun,newdepth,newcp,newstack,aw)
     if 'prev' in run.__dict__:
-        rtag(run.prev,depth,onstack,aw)
+        rtag(run.prev,depth,cp,onstack,aw)
 
 def tag(widget, proc):
     newWindow=AppWindow()
-    newWindow.maxdepth=0
+    newWindow.maxdepth=defaultdict(lambda:0)
+    newWindow.maxcp=0
     for p in runs:
         for r in runs[p]:
             if 'depth' in r.__dict__:
                 del r.depth
     for r in runs[proc]:
-        rtag(r,0,{},newWindow)
+        rtag(r,0,0,{},newWindow)
+    newWindow.cumHeights=[]
+    newWindow.toth=0
+    for i in range(newWindow.maxcp+1):
+        newWindow.cumHeights.append(newWindow.toth)
+        newWindow.toth+=newWindow.maxdepth[i]+1
     redraw(newWindow, with_depths=True)
     newWindow.window.show_all()
     
@@ -374,7 +389,7 @@ def redraw(appWindow,with_depths=False):
         for r in runs[p]:
             if with_depths:
                 if 'depth' in r.__dict__:
-                    y1=(appWindow.maxdepth-r.depth)*20
+                    y1=appWindow.getY(r)
                 else:
                     continue
             else:
@@ -400,7 +415,7 @@ def redraw(appWindow,with_depths=False):
             for s in sleeps[p]:
                 if with_depths:
                     if 'depth' in s.__dict__:
-                        y1=(appWindow.maxdepth-s.depth)*20
+                        y1=appWindow.getY(s)
                     else:
                         continue
                 else:
@@ -424,8 +439,8 @@ def redraw(appWindow,with_depths=False):
         if with_depths:
             if ('sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
                 'depth' in l.sourcerun.__dict__ and 'depth' in l.targetrun.__dict__):
-                y1=(appWindow.maxdepth-l.sourcerun.depth)*20+10
-                y2=(appWindow.maxdepth-l.targetrun.depth)*20+10
+                y1=appWindow.getY(l.sourcerun)+10
+                y2=appWindow.getY(l.targetrun)+10
             else:
                 continue
         else:
@@ -441,6 +456,9 @@ def redraw(appWindow,with_depths=False):
             else:
                 gc=appWindow.blue_gc
         appWindow.pixmap.draw_line(gc, x1, y1, x2, y2)
+    if with_depths:
+        for y in appWindow.cumHeights[:-1]:
+            appWindow.pixmap.draw_line(gc, 0, y*20+10, appWindow.width, y*20+10)
     appWindow.content.queue_draw_area(0,0,appWindow.width,height)
 
 redraw(appWindow)
