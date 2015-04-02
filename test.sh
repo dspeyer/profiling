@@ -6,5 +6,5 @@ killall pass
 
 sudo perf script -f trace:tid,comm,time,event,trace,sym,ip,dso > perf.scr
 
-./parse.py
+./main.py perf.scr
 
