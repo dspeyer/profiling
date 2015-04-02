@@ -7,7 +7,7 @@ import re
 import svgwrite
 import code
 from copy import copy
-import ipdb
+#import ipdb
 
 class struct:
     def __init__(self,**kwargs):
@@ -73,6 +73,9 @@ class AppWindow:
         self.blue_gc =  self.content.window.new_gc()
         self.blue_gc.copy(self.gc)
         self.blue_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=32768, green=32768, blue=65535))
+        self.grey_gc =  self.content.window.new_gc()
+        self.grey_gc.copy(self.gc)
+        self.grey_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=49152, green=49152, blue=49152))
 
         self.pixmap = gtk.gdk.Pixmap(self.content.window, 1, 1)
         self.content.connect('expose-event', self.expose_event)
@@ -115,7 +118,7 @@ for line in f:
         continue
     if line=='\n':
         continue
-    m=re.match('(.*[^ ]) +([0-9]+) +([0-9]*\\.[0-9]*): +([^ ]*): +(.*)',line)
+    m=re.match('(.*[^ ]) +([0-9]+)(?: \\[[0-9]*\\])? +([0-9]*\\.[0-9]*): +([^ ]*): +(.*)',line)
     if m:
         ev=struct()
         (ev.comm, ev.pid, ev.time, ev.event, args) = m.groups()
@@ -146,7 +149,7 @@ for line in f:
         evs.append(ev)
         continue
     m=re.search('[0-9a-f]* ([^ ]*) \\((.*)\\)',line)
-    if m:
+    if m and evs:
         evs[-1].stack.append(struct(function=m.group(1),file=m.group(2)))
     else:
         print 'ERROR: Could not parse "%s"'%line
@@ -160,6 +163,7 @@ inlinks=defaultdict(lambda:[])
 outlinks=defaultdict(lambda:[])
 runs=defaultdict(lambda:[])
 sleeps=defaultdict(lambda:[])
+runningstacks={}
 links=[]
 
 starttime=evs[0].time
@@ -176,10 +180,17 @@ for ev in evs:
                 exit()
             else:
                 runs[oldp].append(struct(start=switchedin[oldp], end=ev.time))
+                if oldp in runningstacks:
+                    runs[oldp][-1].stacks=runningstacks[oldp]
+                else:
+                    runs[oldp][-1].stacks=[]
                 switchedin[oldp]=-1
         else:
             runs[oldp].append(struct(start=starttime, end=ev.time))
             switchedin[oldp]=-1
+        if oldp in runningstacks:
+            del runningstacks[oldp]
+        runningstacks[newp]=[]
         if sleeps[oldp]:
             runs[oldp][-1].prev=sleeps[oldp][-1]
         if newp in switchedin and switchedin[newp]!=-1:
@@ -251,6 +262,12 @@ for ev in evs:
         inlinks[target].append(links[-1])
         switchedin[source]=-1
         switchedin[target]=ev.time
+    elif ev.event=='cycles':
+        proc='%s(%d)'%(ev.comm,ev.pid)
+        if proc in runningstacks:
+            runningstacks[proc].append(ev.stack)
+        else:
+            print 'WARNING: sample for %s at %f which is not running according to sched events'%(proc,ev.time)
     else:
         print 'ERROR: unhandled event "%s"'%ev.event
 
@@ -304,13 +321,29 @@ for l in links:
     connectedness[l.source][l.target]+=1
     connectedness[l.target][l.source]+=1
 
+def runheight(run):
+    if run.type=='sleep':
+        if 'stack' in run.__dict__:
+            return len(run.stack)+1
+        else:
+            return 1
+    else:
+        if 'stacks' in run.__dict__ and run.stacks:
+            return max([len(i) for i in run.stacks])+1
+        else:
+            return 1
+
 def rtag(run,depth,cp,onstack,aw):
     if 'depth' in run.__dict__:
         return
-    if depth>aw.maxdepth[cp]:
-        aw.maxdepth[cp]=depth
+    if depth+runheight(run)>aw.maxdepth[cp]:
+        aw.maxdepth[cp]=depth+runheight(run)
     run.depth=depth
     run.cp=cp
+    if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__ and run.inlink.source in onstack and run.inlink.source!=run.proc:
+        return
+    if 'prev' in run.__dict__:
+        rtag(run.prev,depth,cp,onstack,aw)
     if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__:
         if run.inlink.source in onstack and run.inlink.source!=run.proc:
             return
@@ -318,6 +351,8 @@ def rtag(run,depth,cp,onstack,aw):
         newstack[run.proc]=1
         if 'horizontal' in run.inlink.__dict__:
             newdepth=depth
+        elif 'prev' in run.__dict__:
+            newdepth=run.prev.depth+runheight(run.prev)
         else:
             newdepth=depth+1
         if run.inlink.istransfer:
@@ -326,8 +361,6 @@ def rtag(run,depth,cp,onstack,aw):
             aw.maxcp+=1
             newcp=aw.maxcp
         rtag(run.inlink.sourcerun,newdepth,newcp,newstack,aw)
-    if 'prev' in run.__dict__:
-        rtag(run.prev,depth,cp,onstack,aw)
 
 def tag(widget, proc):
     newWindow=AppWindow()
@@ -378,6 +411,22 @@ show_sleeps=False
 def xfromt(appWindow,t):
     return int(appWindow.width*(t-starttime)/(endtime-starttime))
 
+def drawStack(aw, base, stack, color, x1, x2, startY):
+    y=startY
+    aw.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y,x2-x1,20))
+    aw.pixmap.draw_rectangle(aw.grey_gc, True, x1, y, x2-x1, 20);
+    layout=pango.Layout(aw.normalfont)
+    layout.set_text(base)
+    aw.pixmap.draw_layout(aw.gc, x1, y, layout)
+    for frame in reversed(stack):
+        y-=20
+        aw.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y,x2-x1,20))
+        aw.pixmap.draw_rectangle(color, True, x1, y, x2-x1, 20);
+        layout=pango.Layout(aw.normalfont)
+        layout.set_text(frame.function)
+        aw.pixmap.draw_layout(aw.gc, x1, y, layout)
+    aw.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, aw.width, height))    
+
 def redraw(appWindow,with_depths=False):
     appWindow.content.set_size_request(appWindow.width,height)
     appWindow.pixmap = gtk.gdk.Pixmap(appWindow.content.window, appWindow.width, height)
@@ -396,17 +445,24 @@ def redraw(appWindow,with_depths=False):
                 y1=h
             x1=xfromt(appWindow,r.start)
             x2=xfromt(appWindow,r.end)
-            if with_depths:
-                gc=appWindow.pink_gc
+            if with_depths and 'stacks' in r.__dict__ and r.stacks:
+                nstacks=len(r.stacks)
+                for i in range(len(r.stacks)):
+                    sx1=int(x1+i*(x2-x1)/nstacks)
+                    sx2=int(x1+(i+1)*(x2-x1)/nstacks)
+                    drawStack(appWindow, p, r.stacks[i], appWindow.red_gc, sx1, sx2, y1)
             else:
-                gc=appWindow.gc
-            appWindow.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, (with_depths+1)*10)
-            if with_depths:
-                layout=pango.Layout(appWindow.normalfont)
-                layout.set_text(r.proc)
-                appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y1,x2-x1,20))
-                appWindow.pixmap.draw_layout(appWindow.gc, x1, y1, layout)
-                appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(0,0,appWindow.width,height))
+                if with_depths:
+                    gc=appWindow.pink_gc
+                else:
+                    gc=appWindow.gc
+                appWindow.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, (with_depths+1)*10)
+                if with_depths:
+                    layout=pango.Layout(appWindow.normalfont)
+                    layout.set_text(r.proc)
+                    appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y1,x2-x1,20))
+                    appWindow.pixmap.draw_layout(appWindow.gc, x1, y1, layout)
+                    appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(0,0,appWindow.width,height))
     if show_sleeps or with_depths:
         for p in sleeps:
             if p not in heights:
@@ -422,17 +478,16 @@ def redraw(appWindow,with_depths=False):
                     y1=h
                 x1=xfromt(appWindow,s.start)
                 x2=xfromt(appWindow,s.end)
-                appWindow.pixmap.draw_rectangle(appWindow.blue_gc, True, x1, y1, x2-x1, (with_depths+1)*10)
-                if s.repframe:
-                    if with_depths:
-                        layout=pango.Layout(appWindow.normalfont)
-                        layout.set_text(s.proc+' '+s.repframe)
-                    else:
+                if with_depths and 'stack' in s.__dict__:
+                    drawStack(appWindow, p, s.stack, appWindow.blue_gc, x1, x2, y1)
+                else:
+                    appWindow.pixmap.draw_rectangle(appWindow.blue_gc, True, x1, y1, x2-x1, (with_depths+1)*10)
+                    if s.repframe:
                         layout=pango.Layout(appWindow.smallfont)
                         layout.set_text(s.repframe)
-                    appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y1,x2-x1,(with_depths+1)*10))
-                    appWindow.pixmap.draw_layout(appWindow.gc, x1, y1, layout)
-                    appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(0,0,appWindow.width,height))
+                        appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1,y1,x2-x1,(with_depths+1)*10))
+                        appWindow.pixmap.draw_layout(appWindow.gc, x1, y1, layout)
+                        appWindow.gc.set_clip_rectangle(gtk.gdk.Rectangle(0,0,appWindow.width,height))
     for l in links:
         if l.source not in heights or l.target not in heights:
             continue
