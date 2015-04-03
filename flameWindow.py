@@ -10,6 +10,7 @@ class FlameWindow(AppWindow):
         AppWindow.__init__(self, data.starttime, data.endtime)
         self.window.set_title('Flameview: '+target)
 
+        self.data=data
         self.boxes=data.boxes
         self.links=data.links
 
@@ -21,11 +22,11 @@ class FlameWindow(AppWindow):
                     del r.depth
         for r in data.runs[target]:
             self.rtag(r,0,0,{})
-        self.cumHeights=[]
+        self.cpStartHeights=[]
         self.lheight=0
         self.rowheight=20
         for i in range(self.maxcp+1):
-            self.cumHeights.append(self.lheight+1)
+            self.cpStartHeights.append(self.lheight)
             self.lheight+=self.maxdepth[i]+1
         self.height=self.lheight*self.rowheight
         self.redraw()
@@ -44,7 +45,7 @@ class FlameWindow(AppWindow):
                 for i in range(len(b.stacks)):
                     t1=b.start+i*(b.end-b.start)/nstacks
                     t2=b.start+(i+1)*(b.end-b.start)/nstacks
-                    self.drawStack(b.proc, b.stacks[i], self.red_gc, t1, t2, y)
+                    self.drawStack(b.proc, b.stacks[i], self.pink_gc, t1, t2, y)
             elif 'stack' in b.__dict__ and b.stack:
                 self.drawStack(b.proc, b.stack, self.blue_gc, b.start, b.end, y)
             else:
@@ -55,8 +56,9 @@ class FlameWindow(AppWindow):
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
-        for y in self.cumHeights[:-1]:
-            self.pixmap.draw_line(gc, self.data.starttime, (y+.5)*self.rowheight, self.data.endtime, (y+.5)*self.rowheight)
+        for y in self.cpStartHeights[:-1]:
+            py=int((self.lheight-y+1.5)*self.rowheight)
+            self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
 
@@ -87,6 +89,7 @@ class FlameWindow(AppWindow):
             else:
                 self.maxcp+=1
                 newcp=self.maxcp
+                newdepth=0
             self.rtag(run.inlink.sourcerun,newdepth,newcp,newstack)
 
     def runheight(self, run):
@@ -110,7 +113,7 @@ class FlameWindow(AppWindow):
 
 
     def getY(self,run):
-        depth = self.cumHeights[run.cp] + run.depth
+        depth = self.cpStartHeights[run.cp] + run.depth
         out = (self.lheight-depth)*self.rowheight
         return out
 
