@@ -114,6 +114,6 @@ class FlameWindow(AppWindow):
 
     def getY(self,run):
         depth = self.cpStartHeights[run.cp] + run.depth
-        out = (self.lheight-depth)*self.rowheight
+        out = (self.lheight-depth-1)*self.rowheight
         return out
 
