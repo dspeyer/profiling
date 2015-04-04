@@ -6,6 +6,7 @@ from collections import defaultdict
 
 from appWindow import AppWindow
 from flameWindow import FlameWindow
+from parse import struct
 
 class MainWindow(AppWindow):
     def __init__(self, data):
@@ -19,16 +20,60 @@ class MainWindow(AppWindow):
         self.links=data.links
 
         self.show_sleeps=False
-
         ts=gtk.ToggleButton('Show Sleeps')
         ts.connect('clicked', self.toggle_sleeps)
         self.toolbar.add(ts)
         
+        self.summary=False
+        ts=gtk.ToggleButton('Summary View')
+        ts.connect('clicked', self.toggle_summary)
+        self.toolbar.add(ts)
+
+        self.pick_heights()
+        self.redraw()
+        self.window.show_all()
+
+    def toggle_summary(self, event):
+        if 'includeInSummary' not in self.__dict__:
+            self.includeInSummary={}
+            for p in self.data.runs:
+                time=0
+                for r in self.data.runs[p]:
+                    time+=r.end-r.start
+                self.includeInSummary[p]=(time>(self.data.endtime-self.data.starttime)/300);
+            self.real_links = self.links
+            self.fake_links = []
+            for p in self.data.runs:
+                if self.includeInSummary[p]:
+                    for r in self.data.runs[p]:
+                        if 'inlink' in r.__dict__ and 'sourcerun' in r.inlink.__dict__:
+                            source=r.inlink.sourcerun
+                            istransfer=r.inlink.istransfer
+                            start=r.inlink.start
+                            while not self.includeInSummary[source.proc]:
+                                if 'inlink' in source.__dict__ and 'sourcerun' in source.inlink.__dict__:
+                                    istransfer&=source.inlink.istransfer
+                                    start=source.inlink.start
+                                    source=source.inlink.sourcerun
+                                else:
+                                    source=False
+                                    break
+                            if source:
+                                self.fake_links.append(struct(source=source.proc, sourcerun=source, target=p, targetrun=r, start=start, end=r.inlink.end, istransfer=istransfer))
+        self.summary=not self.summary
+        if self.summary:
+            self.links=self.fake_links
+        else:
+            self.links=self.real_links
+        self.pick_heights()
+        self.redraw()        
+
+    def pick_heights(self):
         # This whole connectedness thing is just to pick heights that group related processes together
         connectedness=defaultdict(lambda:defaultdict(lambda:0))
-        for p1 in data.procs:
+        for p1 in self.data.procs:
             prefix1=p1.split('/')[0].split('(')[0]
-            for p2 in data.procs:
+            for p2 in self.data.procs:
                 prefix2=p2.split('/')[0].split('(')[0]
                 if prefix1==prefix2:
                     connectedness[p1][p2]+=20
@@ -37,12 +82,13 @@ class MainWindow(AppWindow):
             connectedness[l.source][l.target]+=1
             connectedness[l.target][l.source]+=1
 
-        
         # Assign heights to processes with a simple greedy algorithm
         self.heights={}
         h=0
         p='swapper/0(0)'
         self.rowheight=40
+        for child in self.legend.get_children():
+            self.legend.remove(child)
         while True:
             self.heights[p]=h
             button=gtk.Button(label=p)
@@ -54,8 +100,10 @@ class MainWindow(AppWindow):
             h+=bh
             bestv=-1
             bestp=''
-            for nextp in data.procs:
+            for nextp in self.data.procs:
                 if nextp in self.heights:
+                    continue
+                if self.summary and not self.includeInSummary[nextp]:
                     continue
                 conn=connectedness[p][nextp]
                 if conn>bestv:
@@ -65,6 +113,7 @@ class MainWindow(AppWindow):
                 break
             p=bestp
         self.height=h
+        self.legend.show_all()
 
 
     def toggle_sleeps(self, event):

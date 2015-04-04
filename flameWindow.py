@@ -57,7 +57,7 @@ class FlameWindow(AppWindow):
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
         for y in self.cpStartHeights[:-1]:
-            py=int((self.lheight-y+1.5)*self.rowheight)
+            py=int((self.lheight-y+.5)*self.rowheight)
             self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 

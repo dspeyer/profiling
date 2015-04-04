@@ -70,6 +70,7 @@ class AppWindow:
 
         self.width=2000
 
+
     def zoom(self, widget, ratio):
         self.width=int(ratio*self.width)
         self.redraw()
