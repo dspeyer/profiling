@@ -23,7 +23,7 @@ class MainWindow(AppWindow):
         ts=gtk.ToggleButton('Show Sleeps')
         ts.connect('clicked', self.toggle_sleeps)
         self.toolbar.add(ts)
-        
+
         self.summary=False
         ts=gtk.ToggleButton('Summary View')
         ts.connect('clicked', self.toggle_summary)
@@ -66,7 +66,7 @@ class MainWindow(AppWindow):
         else:
             self.links=self.real_links
         self.pick_heights()
-        self.redraw()        
+        self.redraw()
 
     def pick_heights(self):
         # This whole connectedness thing is just to pick heights that group related processes together
@@ -123,32 +123,41 @@ class MainWindow(AppWindow):
 
     def redraw(self):
         self.content.set_size_request(self.width, self.height)
-        self.pixmap = gtk.gdk.Pixmap(self.content.window, self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
-        for b in self.boxes:
-            if b.proc not in self.heights:
+        print "cleared pixmap"
+        for box in self.boxes:
+            # skip the boxes that don't have heights; might want to recheck this
+            if box.proc not in self.heights:
                 continue
-            h=self.heights[b.proc]
-            if b.type=='sleep' and not self.show_sleeps:
+            h=self.heights[box.proc]
+            if box.type=='sleep' and not self.show_sleeps:
                 continue
-            if b.type=='run':
+            if box.type=='run':
+                # graphics context: basically color (black or blue eg.) black by default
                 gc=self.gc
                 text=''
             else:
                 gc=self.blue_gc
-                text=b.repframe
-            self.draw_rectangle(gc, b.start, b.end, h, text)
-        for l in self.links:
-            if l.source not in self.heights or l.target not in self.heights:
+                # we pick the innermost user stack frame and dump text onto the blue box
+                text=box.repframe
+                # instead of drawing one by one, look into how we can divide the total cost
+            self.draw_rectangle(gc, box.start, box.end, h, text)
+        for link in self.links:
+            if link.source not in self.heights or link.target not in self.heights:
                 continue
-            y1=self.heights[l.source]+int(self.rowheight/2)
-            y2=self.heights[l.target]+int(self.rowheight/2)
-            if l.istransfer:
+            y1=self.heights[link.source]+int(self.rowheight/2)
+            y2=self.heights[link.target]+int(self.rowheight/2)
+            if link.istransfer:
                 gc=self.red_gc
             else:
                 gc=self.blue_gc
-            self.draw_line(gc, l.start, y1, l.end, y2)
-        self.content.queue_draw_area(0, 0, self.width, self.height)
+            self.draw_line(gc, link.start, y1, link.end, y2)
+        # notifies X that the area given needs to be updated
+        # X will eventually generate an expose event (possibly combining the areas
+        # passed in several calls to draw()) which will cause our expose event handler
+        # to copy the relevant portions to the screen.
+        print "queueing work"
+        self.content.queue_draw_area(0, 0, 2000, self.height)
 
     def launchFlameWindow(self, ev, p):
         flame=FlameWindow(self.data, p)

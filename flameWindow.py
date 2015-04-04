@@ -34,7 +34,7 @@ class FlameWindow(AppWindow):
 
     def redraw(self):
         self.content.set_size_request(self.width, self.height)
-        self.pixmap = gtk.gdk.Pixmap(self.content.window, self.width, self.height)
+        print "redraw w: %d, h: %d" % (self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
         for b in self.boxes:
             if 'depth' not in b.__dict__ or 'cp' not in b.__dict__:
@@ -59,6 +59,12 @@ class FlameWindow(AppWindow):
         for y in self.cpStartHeights[:-1]:
             py=int((self.lheight-y+.5)*self.rowheight)
             self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
+        print "3"
+        # queues a drawing event, eventually picked up by expose_event
+        #if (self.width >= 64000):
+        #  self.width = self.width / 2
+        # TODO: idea: maybe don't queue from 0, 0 but from current x,y pos
+        # and not self.width, self.height but a fixed amount, that way we move in blocks
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
 
@@ -103,7 +109,7 @@ class FlameWindow(AppWindow):
                 return max([len(i) for i in run.stacks])+1
             else:
                 return 1
-    
+
     def drawStack(self, base, stack, color, x1, x2, startY):
         y=startY
         self.draw_rectangle(self.grey_gc, x1, x2, y, base)

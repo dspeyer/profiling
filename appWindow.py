@@ -63,8 +63,9 @@ class AppWindow:
         self.grey_gc.copy(self.gc)
         self.grey_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=49152, green=49152, blue=49152))
 
-        self.pixmap = gtk.gdk.Pixmap(self.content.window, 1, 1)
+        self.pixmap = gtk.gdk.Pixmap(self.content.window, 30000, 10000)
         self.content.connect('expose-event', self.expose_event)
+        #self.content.connect('configure-event', self.configure_event)
 
         self.font = self.window.create_pango_context()
 
@@ -73,28 +74,45 @@ class AppWindow:
 
     def zoom(self, widget, ratio):
         self.width=int(ratio*self.width)
+        print "zoom w: %d, h: %d" % (self.width, self.height)
         self.redraw()
         self.hadj.set_value(int(self.hadj.get_value()*ratio))
 
     def expose_event(self, widget, event):
         x , y, width, height = event.area
+        print "expose_event: x %d y %d width %d height %d" % (x, y, width, height)
         widget.window.draw_drawable(self.gc, self.pixmap, x, y, x, y, width, height)
         return False
+
+    # Create a new backing pixmap of the appropriate size
+    def configure_event(self, widget, event):
+       x, y, width, height = widget.get_allocation()
+       # self.pixmap = gtk.gdk.Pixmap(widget.window, width, height)
+       # self.pixmap.draw_rectangle(widget.get_style().white_gc,
+       #                       True, 0, 0, width, height)
+       return True
 
     def xfromt(self,t):
         return int(self.width*(t-self.starttime)/(self.endtime-self.starttime))
 
+    # start and end are time get translated to pixels
     def draw_rectangle(self, gc, start, end, h, text):
         x1 = self.xfromt(start)
         x2 = self.xfromt(end)
         y1 = h
-        self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight)
-        if text:
-            layout=pango.Layout(self.font)
-            layout.set_text(text)
-            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight))
-            self.pixmap.draw_layout(self.gc, x1, y1, layout)
-            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, self.width, self.height))
+        #print "drawing at x1 %d y1 %d" % (x1, y1)
+        # obvioulsy terrible, but stops spillover in the pixmap
+        if (x1 < 40000):
+            self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight)
+            if text:
+                layout=pango.Layout(self.font)
+                layout.set_text(text)
+                # clips the rectangle to only this area so that overflowing elements are not shown
+                self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight))
+                # draws the actual pixels onto the pixmap and anything not within ^ is get chopped off
+                self.pixmap.draw_layout(self.gc, x1, y1, layout)
+                # unclips the drawing area
+                self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, self.width, self.height))
 
     def draw_line(self, gc, t1, y1, t2, y2):
         self.pixmap.draw_line(gc, self.xfromt(t1), y1, self.xfromt(t2), y2)
