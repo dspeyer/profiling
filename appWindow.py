@@ -10,6 +10,7 @@ class AppWindow:
         self.endtime=endtime
 
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.set_default_size(800,600)
 
         mainVBox = gtk.VBox()
         hbox = gtk.HBox()
@@ -23,7 +24,6 @@ class AppWindow:
 
         vscroll = gtk.ScrolledWindow()
         vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
-        vscroll.set_size_request(800,600)
 
         hscroll = gtk.ScrolledWindow()
         hscroll.set_policy(gtk.POLICY_ALWAYS, gtk.POLICY_NEVER)
@@ -126,12 +126,16 @@ class AppWindow:
         x1 = self.xfromt(start)
         x2 = self.xfromt(end)
         y1 = h
-        self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight)
+        self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight-1)
         if text:
             layout=pango.Layout(self.font)
             layout.set_text(text)
-            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight))
-            self.pixmap.draw_layout(self.gc, x1, y1, layout)
+            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight-1))
+            tw=layout.get_pixel_size()[0]
+            x=x1
+            while x==x1 or x+tw<x2:
+                self.pixmap.draw_layout(self.gc, x, y1, layout)
+                x+=max(2*tw,400)
             self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, self.width, self.height))
 
     def draw_line(self, gc, t1, y1, t2, y2):

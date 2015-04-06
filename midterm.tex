@@ -1,7 +1,7 @@
 \documentclass[10pt]{article}
 \usepackage[margin=1in]{geometry}
 \twocolumn
-\usepackage{stfloats} 
+%\usepackage{stfloats} 
 \usepackage{graphicx}
 \begin{document}
 \author{Daniel Speyer\\dls2192 \and Johan Mena\\jmm2371}
@@ -12,7 +12,7 @@
 \maketitle
 
 \begin{abstract}
-The first task in writing any performant code is to understand where it is spending its time. This allows you both to apply optimizations where they will make a difference, and to not optimize where it won’t make a difference. The standard tools for this are profilers, which measure where the process spends its time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose a system that can give a more complete view of the causes of an application’s performance.
+The first task in writing any performant code is to understand where it is spending its time. This allows you both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where the process spends its time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose a system that can give a more complete view of the causes of an application’s performance.
 \end{abstract}
 
 \end{@twocolumnfalse}
@@ -35,34 +35,104 @@ In hac habitasse platea dictumst. Suspendisse potenti. Nullam vitae dolor consec
 
 \section{Recursive Systemic Profiler}
 
-\subsection{Concepts}
+The Recursive Systemic Profiler is designed to measure all the activities that contribute to the running time of a program.  It is ``systemic'' in that it records everything that takes place on the system and ``recursive'' in that it starts from a process of interest, then considers processes that was waiting for, and processes those were waiting for, and so on.
 
-\subsubsection{Pseudostacks and Critical Pathes}
+The building blocks the profiler works with are runs, sleeps, links and samples.  A run is a contiguous block of time during which a process is running.  A sleep is a similar block in which the process is not running.  A link marks one run causing another.  And a sample is taken by the sampling profiler.  Each sample is part of a run, but very short runs may not have any samples.
+
+\subsection{Scheduling Information}
+
+Linux Perf Events provides annotations for task switches and wakeups, along with stacks.  Task switches are when one process relinquishes a CPU and another takes over (either of the processes may be the idle process).  A stack is given for the departing process.  Wakeups are when a thread becomes marked as runnable (it may not be scheduled for some time).  The Linux kernel is very good at keeping relevant stacks for wakeups.  For example, if a process writes to a TCP socket that connects to localhost, the user function calls write which notices the file handle is a socket and calls send which notices the destination is localhost and calls receive which notices a process is blocked reading from that socket and calls wakeup.  This entire stack is captured intact by perf.
+
+By examining the timing and stacks of these events, we are able to divide task-switches into categories:
+
+\subsection{Interrupts}
+
+Sometimes a process switches out because the CPU it's on has received an interrupt.  Linux uses very small interrupt handlers which pass tasks to high-priority worker threads, rather than do significant work inside the interrupt handler.  This includes cases where a process is pre-empted because it has exhausted its CPU allocation, which we can think of as ``handling a timer interrupt,'' though that is quite rare in practice.
+
+\subsection{Transfers vs Forks}
+
+For non-interrupts, one process wakes another up and then goes to sleep itself.  In this case, we say that one process has ``transfered'' control to another.  When it does not, we say that the thread of control has ``forked''.
+
+\subsection{Pseudostacks and Control Pathes}
+
+A set of runs connected only by transfer links can be called a ``control path''.
+
+One common pattern is for one process to transfer control to another, and then the other to transfer control back.  Both transfers could be tcp messages, as in the case of making a synchronous rpc request to a database, or one could be a \begin{tt}fork\end{tt} syscall and the other a \begin{tt}wait\end{tt} syscall terminated by the other's exit.  In these cases, it is fairly reasonable to think of the first transfer as a ``function call'' and the second as a ``return''.
+
+While not every pattern of process interaction naturally fits this view, those which don't can generally be shoehorned to fit with fairly little damage.  For example, if one process wakes another which wakes a third which wakes the original, we can think of the first as having been a child of the second, even thought the call went directly.
+
+Once we have this concept of calls and returns, we can assemble the processes into something like a stack.  Note that only the top element of the stack will be a run -- all the rest will be sleeps.
 
 \subsection{Views}
 
+Once we have our data gathered, the next task is to visualize it.  We have several views to do this with.
+
+Our examples here use a toy program called ``pass''.  Pass forks two processes, connects them with pipes, and then runs in a loop in which one process does some work, then writes to one pipe (waking the other process) and reads from the other pipe (blocking on the other process).  It is called ``pass'' because it passes the act of doing work back and forth.
+
 \subsubsection{Process Running View}
+
+The first view is the Process Running View.  It uses an x axis of time and a y axis of processes.  Each run is a block bar, and each link is drawn as a line between them.  The line is red for a transfer, or blue for a fork.
 
 \begin{figure}[h]
 \includegraphics[width=3.25in]{screenshot}
 \caption{The Process Running View}
 \end{figure}
 
+The view also contains an option to show sleeps, which are drawn as blue boxes.  Sleeps are labeled with one function from the stack which best describes the sleep.  At the moment, this is the innermost userspace function, which roughly corresponds to the blocking syscall as the programmer would conceive of it.
+
+Clicking on a process name opens a Flame View for that process.
+
+\subsubsection{Flame View}
+
+The Flame View takes a single process and shows all associated processes, organized into control paths.  Each control path is treated as a series of pseudostacks, and each layer of each pseudostack is drawn as its stack.  This presents the concept of a single stack of functions stretching across multiple processes, which is a pretty good fit for how many programs are actually designed.
+
+\begin{figure}[h]
+\includegraphics[width=3.25in]{flameshot}
+\caption{The Chronological Flame View}
+\end{figure}
+
+Functions in a run stack are shown in red, whereas those in a sleep stack are shown in blue.  Process names are shown in grey.  Links are still shown, though links within a control process tend to be largely invisible.
+
+If a run has multiple samples, the horizontal space of the run is divided equally.
+
+The x axis is still time, but now the y axis is stack depth.
+
 \subsection{Implementation}
 \subsubsection{Data Collection}
+
+\pretolerance=1000
+
+All data is collected from Linux Perf Events, using the \\ \begin{tt}sched:sched\_wakeup\end{tt}, \begin{tt}sched:sched\_switch\end{tt}, \\ \begin{tt}sched:sched\_process\_exec,\end{tt} and \begin{tt}cycles\end{tt} events.  The data is then dumped in a textual format using the \begin{tt}perf script\end{tt} command.
+
+\pretolerance=200
+
 \subsubsection{Assembling Runs, Sleeps and Links}
-\subsubsection{Algorithms For Link Finding}
+
+The first processing pass simply reads in text and creates a series of event objects.  Each object corresponds to a single event as perf understands the concept.  This pass also attaches stacks to the correct events.
+
+The data is then read into a  state machine that creates runs, sleeps and links.  While passing through, the system keeps track of when each process last started or stopped, what stack each process departed with, and what links are still being assembled.  Links have three timestamps attached: when the wakeup event occurred, when the target process started running, and when the source process stopped running.
+
+Links for which the source process stopped less than $100\mu s$ after the wakeup event are regarded as ``transfer'' links.  This number is arbitrary, but seems to work pretty well in practice.
+
 \subsubsection{Working Around Interrupts}
+
+Wakeup events can be identified as interrupts if the departing stack contains either \begin{tt}do\_IRQ\end{tt} or \begin{tt}apic\_timer\_interrupt\end{tt}.  For interrupts, we do not make a link between the processes, but instead make a link between the two runs of the interrupted process that have the interrupt in between them.  This link is marked as ``horizontal'', because it does not correspond to a change of stack layer.
+
 \subsubsection{Recursive Stack Making}
-\subsubsection{Assembling Pseudostacks}
+
+We assemble pseudostacks recursively, going backwards in time.  We start with the process of interest, then look at what woke it and so on.  All wakings are seen as going deeper into the stack unless this would cause a process to appear on the stack twice.  Since a process that is blocked, waiting on the thing it spawned to finish is not listening to other processes, we generally shouldn't one process twice.  There are a few possibilities involving select calls which we will simply accept a suboptimal visualization of, and signals, which are rare.
+
 \subsubsection{Consolidating}
 \subsubsection{Visualizing}
+
+All visualizations are drawn using gtk.
+
 \section{Evalutation}
-\subsection{apt-get}
+\subsection{squirrelmail}
 \subsubsection{Visualization}
 \subsubsection{How Much Is Explained}
 \subsubsection{Comparisons}
 \subsection{Other tests}
-\subsubsection{squirrelmail}
+\subsubsection{apt-get}
 \subsubsection{chrome load}
 \end{document}

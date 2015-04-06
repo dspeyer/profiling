@@ -219,6 +219,9 @@ def parse(fn):
     for p in sleeps:
         boxes+=sleeps[p]
 
+    for b in boxes:
+        b.wdata=defaultdict(lambda:struct())
+
     procs=set(runs.keys()) | set(sleeps.keys());
     
     return struct(runs=runs, 

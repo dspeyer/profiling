@@ -4,6 +4,9 @@ from collections import defaultdict
 from copy import copy
 
 from appWindow import AppWindow
+from parse import struct
+
+grace=1e-4
 
 class FlameWindow(AppWindow):
     def __init__(self, data, target):
@@ -15,13 +18,10 @@ class FlameWindow(AppWindow):
         self.links=data.links
 
         self.maxdepth=defaultdict(lambda:0)
+        self.roots=defaultdict(lambda:[])
         self.maxcp=0
-        for p in data.runs:
-            for r in data.runs[p]:
-                if 'depth' in r.__dict__:
-                    del r.depth
         for r in data.runs[target]:
-            self.rtag(r,0,0,{})
+            self.rtag(r,None)
         self.cpStartHeights=[]
         self.lheight=0
         self.rowheight=20
@@ -36,23 +36,12 @@ class FlameWindow(AppWindow):
         self.content.set_size_request(self.width, self.height)
         self.pixmap = gtk.gdk.Pixmap(self.content.window, self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
-        for b in self.boxes:
-            if 'depth' not in b.__dict__ or 'cp' not in b.__dict__:
-                continue
-            y=self.getY(b)
-            if 'stacks' in b.__dict__ and b.stacks:
-                nstacks=len(b.stacks)
-                for i in range(len(b.stacks)):
-                    t1=b.start+i*(b.end-b.start)/nstacks
-                    t2=b.start+(i+1)*(b.end-b.start)/nstacks
-                    self.drawStack(b.proc, b.stacks[i], self.pink_gc, t1, t2, y)
-            elif 'stack' in b.__dict__ and b.stack:
-                self.drawStack(b.proc, b.stack, self.blue_gc, b.start, b.end, y)
-            else:
-                self.draw_rectangle(self.grey_gc, b.start, b.end, y, b.proc)
+        for cp in self.roots:
+            self.mergeAndDrawBoxes(self.roots[cp])
         for l in self.links:
-            if ('sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
-                'depth' in l.sourcerun.__dict__ and 'depth' in l.targetrun.__dict__):
+            if (not l.istransfer and
+                'sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
+                'bottom' in l.sourcerun.wdata[self.id].__dict__ and 'bottom' in l.targetrun.wdata[self.id].__dict__):
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
@@ -61,36 +50,116 @@ class FlameWindow(AppWindow):
             self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
+    def mergeAndDrawBoxes(self, boxes):
+        if len(boxes)==0:
+            return
+        subboxes=[]
+        for box in sorted(boxes,key=lambda(box):box.start):            
+            if 'stack' in box.__dict__:
+                subboxes.append(struct(color=self.blue_gc, start=box.start, end=box.end, stack=box.stack, proc=box.proc))
+                if 'children' in box.wdata[self.id].__dict__:
+                    subboxes[-1].children=box.wdata[self.id].children
+                else:
+                    subboxes[-1].children=[]
+            elif 'stacks' in box.__dict__ and len(box.stacks)>0:
+                nstacks=len(box.stacks)
+                for i in range(len(box.stacks)):
+                    t1=box.start+i*(box.end-box.start)/nstacks
+                    t2=box.start+(i+1)*(box.end-box.start)/nstacks
+                    subboxes.append(struct(color=self.pink_gc, start=t1, end=t2, stack=box.stacks[i], children=[], proc=box.proc))
+            else:
+                subboxes.append(struct(start=box.start, end=box.end, stack=[struct(function='?',file='?')], proc=box.proc))
+                if box.type=='run':
+                    subboxes[-1].color=self.pink_gc
+                else:
+                    subboxes[-1].color=self.blue_gc
+                if 'children' in box.wdata[self.id].__dict__:
+                    subboxes[-1].children=box.wdata[self.id].children
+                else:
+                    subboxes[-1].children=[]
+        self.mergeAndDrawSubBoxes(subboxes, -1, boxes[0].wdata[self.id].bottom)
 
-    def rtag(self, run, depth, cp, onstack):
-        if 'depth' in run.__dict__:
+    def mergeAndDrawSubBoxes(self, subboxes, frame, bottom):
+        if len(subboxes)==0:
             return
-        if depth+self.runheight(run)>self.maxdepth[cp]:
-            self.maxdepth[cp]=depth+self.runheight(run)
-        run.depth=depth
-        run.cp=cp
-        if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__ and run.inlink.source in onstack and run.inlink.source!=run.proc:
+        boxToDraw=None
+        sn=0
+        for i in xrange(len(subboxes)):
+            sb=subboxes[i]
+            if self.xfromt(sb.end)-self.xfromt(sb.start)<2:
+                continue
+            if frame==-1:
+                text=sb.proc
+            elif frame<len(sb.stack):
+                text = sb.stack[-1-frame].function
+            else:
+                text = None
+            if boxToDraw and (self.xfromt(sb.start)>self.xfromt(boxToDraw.end)+5 or text!=boxToDraw.text):
+                if boxToDraw.text:
+                    if frame==-1:
+                        boxToDraw.color=self.grey_gc
+                    self.draw_rectangle(boxToDraw.color, boxToDraw.start, boxToDraw.end, self.physFromLogY(bottom+1+frame), boxToDraw.text)
+                    self.mergeAndDrawSubBoxes(subboxes[sn:i], frame+1, bottom)
+                else:
+                    self.mergeAndDrawBoxes(boxToDraw.children)
+                boxToDraw=None
+            if not boxToDraw:
+                boxToDraw=struct(color=sb.color, start=sb.start, end=sb.end, text=text, children=sb.children)
+                sn=i
+            else:
+                boxToDraw.end=sb.end
+                if boxToDraw.color!=sb.color:
+                    boxToDraw.color=self.purple_gc
+                for child in sb.children:
+                    boxToDraw.children.append(child)
+        if boxToDraw:
+            if boxToDraw.text:
+                if frame==-1:
+                    boxToDraw.color=self.grey_gc
+                self.draw_rectangle(boxToDraw.color, boxToDraw.start, boxToDraw.end, self.physFromLogY(bottom+1+frame), boxToDraw.text)
+                self.mergeAndDrawSubBoxes(subboxes[sn:], frame+1, bottom)
+            else:
+                self.mergeAndDrawBoxes(boxToDraw.children)
+
+    def rtag(self, box, parent, onstack={}, dbgdep=0):
+        d=box.wdata[self.id]
+        if 'cp' in d.__dict__:
             return
-        if 'prev' in run.__dict__:
-            self.rtag(run.prev,depth,cp,onstack)
-        if 'inlink' in run.__dict__ and 'sourcerun' in run.inlink.__dict__:
-            if run.inlink.source in onstack and run.inlink.source!=run.proc:
-                return
-            newstack=copy(onstack)
-            newstack[run.proc]=1
-            if 'horizontal' in run.inlink.__dict__:
-                newdepth=depth
-            elif 'prev' in run.__dict__:
-                newdepth=run.prev.depth+self.runheight(run.prev)
+        if parent:
+            if box.start+grace<parent.start or box.end-grace>parent.end:
+                if box.type=='run':
+                    self.maxcp+=1
+                    d.cp=self.maxcp
+                    d.bottom=0
+                else:
+                    return
             else:
-                newdepth=depth+1
-            if run.inlink.istransfer:
-                newcp=cp
-            else:
-                self.maxcp+=1
-                newcp=self.maxcp
-                newdepth=0
-            self.rtag(run.inlink.sourcerun,newdepth,newcp,newstack)
+                d.parent=parent
+                if 'children' not in parent.wdata[self.id].__dict__:
+                    parent.wdata[self.id].children=[]
+                parent.wdata[self.id].children.append(box)
+                d.cp=parent.wdata[self.id].cp
+                d.bottom=parent.wdata[self.id].top
+        else:
+            d.cp=0
+            d.bottom=0
+        if d.bottom==0:
+            self.roots[d.cp].append(box)
+        d.top = d.bottom+self.runheight(box)
+        if d.top>self.maxdepth[d.cp]:
+            self.maxdepth[d.cp]=d.top
+        if 'inlink' in box.__dict__ and box.inlink.source in onstack:
+            return
+        if 'prev' in box.__dict__:
+            self.rtag(box.prev, parent, onstack, dbgdep+1)
+            if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
+                if 'horizontal' in box.inlink.__dict__:
+                    self.rtag(box.prev, parent, onstack, dbgdep+1)
+                else:
+                    newstack=copy(onstack)
+                    newstack[box.proc]=1
+                    self.rtag(box.inlink.sourcerun, box.prev, newstack, dbgdep+1)
+
 
     def runheight(self, run):
         if run.type=='sleep':
@@ -113,7 +182,9 @@ class FlameWindow(AppWindow):
 
 
     def getY(self,run):
-        depth = self.cpStartHeights[run.cp] + run.depth
+        depth = self.cpStartHeights[run.wdata[self.id].cp] + run.wdata[self.id].bottom
         out = (self.lheight-depth-1)*self.rowheight
         return out
 
+    def physFromLogY(self, logY):
+        return  (self.lheight-logY-1)*self.rowheight
