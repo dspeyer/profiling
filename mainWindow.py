@@ -67,6 +67,7 @@ class MainWindow(AppWindow):
             self.links=self.real_links
         self.pick_heights()
         self.redraw()        
+        self.redraw_times()
 
     def pick_heights(self):
         # This whole connectedness thing is just to pick heights that group related processes together

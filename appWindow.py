@@ -2,6 +2,7 @@
 
 import gtk
 import pango
+import math
 
 class AppWindow:
     def __init__(self, starttime, endtime):
@@ -27,10 +28,15 @@ class AppWindow:
         hscroll = gtk.ScrolledWindow()
         hscroll.set_policy(gtk.POLICY_ALWAYS, gtk.POLICY_NEVER)
         hscroll.get_hscrollbar().set_child_visible(False)
+    
+        tscroll = gtk.ScrolledWindow(hadjustment=hscroll.get_hadjustment())
+        tscroll.set_policy(gtk.POLICY_ALWAYS, gtk.POLICY_NEVER)
+        tscroll.get_hscrollbar().set_child_visible(False)
 
         self.legend = gtk.VBox()
 
         self.content = gtk.DrawingArea()
+        self.timing = gtk.DrawingArea()
 
         self.hadj=adjustment=hscroll.get_hadjustment()
         hscrollbar = gtk.HScrollbar(self.hadj)
@@ -38,6 +44,7 @@ class AppWindow:
         self.window.add(mainVBox)
         mainVBox.pack_start(self.toolbar, expand=False, fill=False)
         mainVBox.pack_start(vscroll, expand=True, fill=True)
+        mainVBox.pack_start(tscroll, expand=False, fill=False)
         mainVBox.pack_start(hscrollbar, expand=False, fill=False)
         self.toolbar.add(zi)
         self.toolbar.add(zo)
@@ -45,6 +52,7 @@ class AppWindow:
         hbox.pack_start(self.legend, expand=False, fill=False)
         hbox.pack_start(hscroll, expand=True, fill=True)
         hscroll.add_with_viewport(self.content)
+        tscroll.add_with_viewport(self.timing)
 
         self.content.realize()
         self.gc = self.content.get_style().fg_gc[gtk.STATE_NORMAL]
@@ -62,23 +70,53 @@ class AppWindow:
         self.grey_gc =  self.content.window.new_gc()
         self.grey_gc.copy(self.gc)
         self.grey_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=49152, green=49152, blue=49152))
+        self.purple_gc =  self.content.window.new_gc()
+        self.purple_gc.copy(self.gc)
+        self.purple_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=49152, green=32768, blue=65535))
+
+        self.timing.realize()
+
 
         self.pixmap = gtk.gdk.Pixmap(self.content.window, 1, 1)
-        self.content.connect('expose-event', self.expose_event)
+        self.content.connect('expose-event', self.expose_event, 'pixmap')
+
+        self.timingpixmap = gtk.gdk.Pixmap(self.timing.window, 1, 1)
+        self.timing.connect('expose-event', self.expose_event, 'timingpixmap')
 
         self.font = self.window.create_pango_context()
 
         self.width=2000
+        self.rowheight=20
+
+        self.id=AppWindow.id
+        AppWindow.id+=1
+        self.redraw_time()
+
+    def redraw_time(self):
+        lx, ly, lwidth, lheight = self.legend.get_allocation()
+        self.timing.set_size_request(self.width+lwidth, self.rowheight)
+        self.timingpixmap = gtk.gdk.Pixmap(self.timing.window, self.width+lwidth, self.rowheight)
+        self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width+lwidth, self.rowheight)
+        gc = self.timing.get_style().fg_gc[gtk.STATE_NORMAL]
+        gap=(150./self.width)*(self.endtime-self.starttime)
+        t=self.starttime
+        while t<self.endtime:
+            layout=pango.Layout(self.font)
+            layout.set_text('%f'%t)
+            self.timingpixmap.draw_layout(gc, self.xfromt(t)+lwidth, 0, layout)
+            t+=gap
+        self.timing.queue_draw_area(0, 0, self.width, self.rowheight)
 
 
     def zoom(self, widget, ratio):
         self.width=int(ratio*self.width)
         self.redraw()
         self.hadj.set_value(int(self.hadj.get_value()*ratio))
+        self.redraw_time()
 
-    def expose_event(self, widget, event):
+    def expose_event(self, widget, event, pmname):
         x , y, width, height = event.area
-        widget.window.draw_drawable(self.gc, self.pixmap, x, y, x, y, width, height)
+        widget.window.draw_drawable(self.gc, self.__dict__[pmname], x, y, x, y, width, height)
         return False
 
     def xfromt(self,t):
@@ -98,3 +136,6 @@ class AppWindow:
 
     def draw_line(self, gc, t1, y1, t2, y2):
         self.pixmap.draw_line(gc, self.xfromt(t1), y1, self.xfromt(t2), y2)
+
+
+AppWindow.id=0
