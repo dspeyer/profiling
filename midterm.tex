@@ -17,20 +17,6 @@
 \begin{abstract}
 The first task in writing any performant code is to understand where it is spending its time. This allows programmers both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where processes spend their time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose and implement a Recursive Systemic Profiler, a tool that can give a more complete view of the causes of an application’s performance in Linux system.
 
-We show that 
-
-Preliminary
-data from several weeks of continuous use on our workstations
-shows that Arnold’s storage requirements for 4
-or more years of usage can be satisfied by adding a 4 TB
-hard drive to the system.1 Further, the performance overhead
-on almost all workloads we measured was under
-8\%. We show that Arnold can reconstruct prior state and
-answer lineage queries, including backward queries (on
-what did this item depend?) and forward queries (what
-other state did this item affect?)
-\end{abstract}
-
 \section{Introduction}
 Even though premature optimization is the root of all evil, profiling the performance of a system is critical for its improvement. Profiling is, however, no small task: WHY. As systems become more complex, it is becoming increasingly important to become familiar with several profiling tools that can aid in understanding them. The motivation of the Recursive Systemic Profiler is simple: to show how processes spend their time. This allows programmers and system administrators to answer questions like: Why is this process slow? What is it waiting on? What is the reason it is spending this many resources?
 
