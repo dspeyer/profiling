@@ -30,8 +30,10 @@ class MainWindow(AppWindow):
         self.toolbar.add(ts)
 
         self.pick_heights()
+        self.zoom(None,1)
         self.redraw()
         self.window.show_all()
+
 
     def toggle_summary(self, event):
         if 'includeInSummary' not in self.__dict__:
@@ -124,7 +126,6 @@ class MainWindow(AppWindow):
 
     def redraw(self):
         self.content.set_size_request(self.width, self.height)
-        self.pixmap = gtk.gdk.Pixmap(self.content.window, self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
         for b in self.boxes:
             if b.proc not in self.heights:

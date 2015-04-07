@@ -34,7 +34,6 @@ class FlameWindow(AppWindow):
 
     def redraw(self):
         self.content.set_size_request(self.width, self.height)
-        self.pixmap = gtk.gdk.Pixmap(self.content.window, self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
         for cp in self.roots:
             self.mergeAndDrawBoxes(self.roots[cp])
