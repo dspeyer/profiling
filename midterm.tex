@@ -122,7 +122,7 @@ The Flame View takes a single process and shows all associated processes, organi
 \caption{The Chronological Flame View}
 \end{figure}
 
-Functions in a run stack are shown in red, whereas those in a sleep stack are shown in blue.  Process names are shown in grey.  Links are still shown, though links within a control process tend to be largely invisible.
+Functions in a run stack are shown in red, whereas those in a sleep stack are shown in blue.  Functions in both (i.e. those which call both sleep and run subroutines) are shown in purple. Process names are shown in grey.  Blocking IOs (not in this example) are green.  Links are still shown, though links within a control process tend to be largely invisible.
 
 If a run has multiple samples, the horizontal space of the run is divided equally.
 
@@ -167,6 +167,12 @@ One thing we have not yet written is a consolidator, that will convert temporal 
 
 All visualizations are drawn using gtk.
 
+The legend of the main window doubles as launchers for the flameviews (specifying which process is of interest).
+
+Note that sometimes a child will slightly overflow its parent.  This is by design.  So long as the overflow is small, the run is conceptually a child of the sleep, even though it starts first.
+
+In the flamegraphs, adjacent stack elements are unified so long as there is nothing visible between them.  Increasing zoom can cause formerly unified blocks to separate.  This is necessary to fullfill users' expectations for computation-heavy code that suffers from interrupts.
+
 \section{Evalutation}
 \subsection{squirrelmail}
 
@@ -184,9 +190,6 @@ We plan to run other tests as well, including apt-get, window drag in plasma-des
 
 \newpage
 
-$ $
-
-\newpage
 
 \begin{figure}
 \includegraphics[width=6in]{squirrelmail}
