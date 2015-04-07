@@ -29,14 +29,27 @@ class FlameWindow(AppWindow):
             self.cpStartHeights.append(self.lheight)
             self.lheight+=self.maxdepth[i]+1
         self.height=self.lheight*self.rowheight
+
+        self.gcByType={
+            'run': self.pink_gc,
+            'sleep': self.blue_gc,
+            'mixed': self.purple_gc,
+            'proc': self.grey_gc
+        }
+
         self.redraw()
         self.window.show_all()
 
     def redraw(self):
         self.content.set_size_request(self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
+        self.ipFrames=defaultdict(lambda:None)
         for cp in self.roots:
             self.mergeAndDrawBoxes(self.roots[cp])
+        for y in self.ipFrames:
+            if self.ipFrames[y]:
+                self.finalize_frame(self.ipFrames[y], y)
+        self.ipFrames=None
         for l in self.links:
             if (not l.istransfer and
                 'sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
@@ -49,82 +62,59 @@ class FlameWindow(AppWindow):
             self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
+
     def mergeAndDrawBoxes(self, boxes):
         if len(boxes)==0:
             return
-        subboxes=[]
-        for box in sorted(boxes,key=lambda(box):box.start):            
+        for box in sorted(boxes,key=lambda(box):box.start):
+            y=box.wdata[self.id].bottom
+            self.put_frame(box.proc, box.start, box.end, y, 'proc')
+            y+=1
             if 'stack' in box.__dict__:
-                subboxes.append(struct(color=self.blue_gc, start=box.start, end=box.end, stack=box.stack, proc=box.proc))
-                if 'children' in box.wdata[self.id].__dict__:
-                    subboxes[-1].children=box.wdata[self.id].children
-                else:
-                    subboxes[-1].children=[]
+                for frame in reversed(box.stack):
+                    self.put_frame(frame.function, box.start, box.end, y, box.type)
+                    y+=1
             elif 'stacks' in box.__dict__ and len(box.stacks)>0:
                 nstacks=len(box.stacks)
                 for i in range(len(box.stacks)):
+                    y=box.wdata[self.id].bottom+1
                     t1=box.start+i*(box.end-box.start)/nstacks
                     t2=box.start+(i+1)*(box.end-box.start)/nstacks
-                    subboxes.append(struct(color=self.pink_gc, start=t1, end=t2, stack=box.stacks[i], children=[], proc=box.proc))
+                    for frame in reversed(box.stacks[i]):
+                        self.put_frame(frame.function, t1, t2, y, box.type)
+                        y+=1
             else:
-                subboxes.append(struct(start=box.start, end=box.end, stack=[struct(function='?',file='?')], proc=box.proc))
-                if box.type=='run':
-                    subboxes[-1].color=self.pink_gc
-                else:
-                    subboxes[-1].color=self.blue_gc
-                if 'children' in box.wdata[self.id].__dict__:
-                    subboxes[-1].children=box.wdata[self.id].children
-                else:
-                    subboxes[-1].children=[]
-        self.mergeAndDrawSubBoxes(subboxes, -1, boxes[0].wdata[self.id].bottom)
+                self.put_frame('?', box.start, box.end, y, box.type)
+                y+=1
+            if 'children' in box.wdata[self.id].__dict__:
+                self.mergeAndDrawBoxes(box.wdata[self.id].children)
 
-    def mergeAndDrawSubBoxes(self, subboxes, frame, bottom):
-        if len(subboxes)==0:
+    def put_frame(self, text, start, end, y, typ):
+        if self.xfromt(end)-self.xfromt(start)<2:
             return
-        boxToDraw=None
-        sn=0
-        for i in xrange(len(subboxes)):
-            sb=subboxes[i]
-            if self.xfromt(sb.end)-self.xfromt(sb.start)<2:
-                continue
-            if frame==-1:
-                text=sb.proc
-            elif frame<len(sb.stack):
-                text = sb.stack[-1-frame].function
+        if self.ipFrames[y]:
+            if text==self.ipFrames[y].text and self.xfromt(start)-self.xfromt(self.ipFrames[y].end)<5:
+                self.ipFrames[y].end=end
+                if self.ipFrames[y].typ!=typ:
+                    self.ipFrames[y].typ='mixed'
             else:
-                text = None
-            if boxToDraw and (self.xfromt(sb.start)>self.xfromt(boxToDraw.end)+5 or text!=boxToDraw.text):
-                if boxToDraw.text:
-                    if frame==-1:
-                        boxToDraw.color=self.grey_gc
-                    self.draw_rectangle(boxToDraw.color, boxToDraw.start, boxToDraw.end, self.physFromLogY(bottom+1+frame), boxToDraw.text)
-                    self.mergeAndDrawSubBoxes(subboxes[sn:i], frame+1, bottom)
-                else:
-                    self.mergeAndDrawBoxes(boxToDraw.children)
-                boxToDraw=None
-            if not boxToDraw:
-                boxToDraw=struct(color=sb.color, start=sb.start, end=sb.end, text=text, children=sb.children)
-                sn=i
-            else:
-                boxToDraw.end=sb.end
-                if boxToDraw.color!=sb.color:
-                    boxToDraw.color=self.purple_gc
-                for child in sb.children:
-                    boxToDraw.children.append(child)
-        if boxToDraw:
-            if boxToDraw.text:
-                if frame==-1:
-                    boxToDraw.color=self.grey_gc
-                self.draw_rectangle(boxToDraw.color, boxToDraw.start, boxToDraw.end, self.physFromLogY(bottom+1+frame), boxToDraw.text)
-                self.mergeAndDrawSubBoxes(subboxes[sn:], frame+1, bottom)
-            else:
-                self.mergeAndDrawBoxes(boxToDraw.children)
+                self.finalize_frame(self.ipFrames[y], y)
+                self.ipFrames[y]=None
+        if not self.ipFrames[y]:
+            self.ipFrames[y]=struct(text=text,start=start,end=end,typ=typ)
+
+    def finalize_frame(self, frame, y):
+        self.draw_rectangle(self.gcByType[frame.typ], frame.start, frame.end, self.physFromLogY(y), frame.text)
+
+
 
     def rtag(self, box, parent, onstack={}, dbgdep=0):
         d=box.wdata[self.id]
         if 'cp' in d.__dict__:
             return
         if parent:
+            if 'cp' not in parent.wdata[self.id].__dict__:
+                return
             if box.start+grace<parent.start or box.end-grace>parent.end:
                 if box.type=='run':
                     self.maxcp+=1
