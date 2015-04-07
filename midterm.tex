@@ -4,34 +4,58 @@
 %\usepackage{stfloats} 
 \usepackage{graphicx}
 \begin{document}
-\author{Daniel Speyer\\dls2192 \and Johan Mena\\jmm2371}
+\author{Daniel Speyer\\dls2192@columbia.edu \and Johan Mena\\j.mena@columbia.edu}
 \title{A Recursive Systemic Profiler}
 
 \twocolumn[
 \begin{@twocolumnfalse}
 \maketitle
 
-\begin{abstract}
-The first task in writing any performant code is to understand where it is spending its time. This allows you both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where the process spends its time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose a system that can give a more complete view of the causes of an application’s performance.
-\end{abstract}
-
 \end{@twocolumnfalse}
 ]
 
+\begin{abstract}
+The first task in writing any performant code is to understand where it is spending its time. This allows programmers both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where processes spend their time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose and implement a Recursive Systemic Profiler, a tool that can give a more complete view of the causes of an application’s performance in Linux system.
+
 \section{Introduction}
- Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas malesuada, libero tempus congue tempus, velit sem ultricies enim, quis pretium odio turpis nec nulla. Aliquam mollis magna in est semper fermentum. Suspendisse sed orci ullamcorper, hendrerit neque quis, lacinia dui. Quisque id enim at libero consectetur hendrerit. Nam enim nunc, bibendum in vulputate in, dictum vitae risus. Proin molestie arcu tortor, ac cursus erat commodo vitae. Integer sodales erat et magna porttitor ultrices. Nulla facilisi. Quisque quam eros, convallis eu nunc porttitor, imperdiet convallis lorem. Quisque scelerisque egestas tincidunt. Vivamus pharetra ex ligula, ac aliquam mauris dapibus quis. Cras non ligula eu ante mollis malesuada. Nam est lacus, fringilla nec mi eget, iaculis aliquet nisi.
+Even though premature optimization is the root of all evil, profiling the performance of a system is critical for its improvement. Profiling is, however, no small task: WHY. As systems become more complex, it is becoming increasingly important to become familiar with several profiling tools that can aid in understanding them. The motivation of the Recursive Systemic Profiler is simple: to show how processes spend their time. This allows programmers and system administrators to answer questions like: Why is this process slow? What is it waiting on? What is the reason it is spending this many resources?
 
-In hac habitasse platea dictumst. Suspendisse potenti. Nullam vitae dolor consectetur, sollicitudin ex at, suscipit leo. Suspendisse sit amet mauris auctor orci condimentum aliquet tristique ac arcu. Nam sollicitudin mauris vel quam vulputate, id scelerisque arcu bibendum. Pellentesque vitae urna sed enim dignissim pulvinar in et eros. Mauris nec risus dapibus, ultricies est et, malesuada mauris. Suspendisse potenti. Sed quis tellus eu velit facilisis viverra aliquam nec ante.
+We know from experience that, most of the time, the slowness of systems comes from very specific parts of the codebase (as opposed to the entire system). As programmers, we want to be able to identify where this is so we can optimize that and not waste time optimizing other, unimportant parts.
 
-\section{Background: Tools to Get Data}
+We present RSP, which blah.
+The rest of the paper is organized as follows. Section 2 lays out the background 
+
+\section{Background: Data Collectors}
+In order to make sense of the performance of a system, one first need to collect data. There are several open source profiling tools that focus on this task. We can classify them in three different groups by the approach they use to collect information: event-based, sample-based and a combination of both. 
+
+Event-based tools work by instrumenting programs: they insert marks at different points of a system and trigger an event when the profiled application runs into them. These events can trigger simple data-collection actions like incrementing a counter, but they can also perform more complicated tasks like generating stack dumps or generating some kind of logging.
+
+Sample-based tools work by collecting samples of programs at regular intervals.  Samples be performance counters, stack traces, or something else of relevance. These kinds of profilers are typically less accurate than event-based profilers since they rely on , but they since they don't introduce the overhead of generating events, they are usually less intrusive with respect with the profiled application.
+
+A third approach combines event-based and sample-based profiling.
+
+There are a variety of open source tools at our disposal for collecting data within Linux-based operating systems. They vary in functionality and mode of use depending on, for example, the part of the operating system the user is interested in analyzing or the information granularity desired.
+
+Some of the most popular tools include perf for system-wide profiling, strace for system call profiling or netstat for network profiling.
+
+One of the first questions that arises when trying to create a tool like the Recursive Systemic Profiler is: how will it gather its data? Since RSP focuses on giving users a full-picture view of the system, we decided we needed a tool that system-wide reach to gather its data. After evaluating a few of the tools that were available, we determined we should try out three different such tools and decide on one of them: lttng, perf and DTrace.
+
+Since creating a profiler from scratch would have been a daunting task (to say the least), we instead chose to build our tool on top of one of the most widely popular and supported profilers available at the moment: perf.
 
 \subsection{Linux Perf Events}
 
-\subsection{Dtrace}
+Linux Perf Events, also known as perf\_events or just perf, compared to other tools like ftrace or lttng, has the advantage of being a mature and actively developed tool that can collect system-wide information in an event-oriented fashion: it is able to tap into hardware events like CPU cycles and memory cache misses; software events like CPU migrations and minor faults; as well as high-level behavior like system calls, TCP events, disk and file system I/O, etc.
 
-\section{Other Visualizations}
+One other characteristic we needed in a tool was the confidence that it was  In addition to these characteristics, perf is part of the Linux kernel itself, so not much extra software is needed in order for one to start profiling applications.
 
-\subsection{flamegraphs}
+\section{Visualizations}
+Visualizations are at the heart of the Recursive Systemic Profiler. Not only do visualizations help to understand what's happening in a system in a shorter period of time compared to looking at plain old statistics, but they also show at-a-glance information that can easily be missed when only reading raw numbers. After evaluating several approaches of data visualization for profilers, we felt we needed to emulate something akin to flame graphs.
+
+\subsection{Flame Graphs}
+Flame Graphs, a visualization tool invented by Brendan Gregg, are a simple way to visualize stack traces. Stack traces contain the names of the functions being executed by the CPU at any given time. Flame graphs present this information in a hierarchical manner, in such a way that one can easily tell which function called which other function, in a clear, chain-like manner.
+
+Flame graphs also have the characteristic  are able to show at a glance overall hot-spots shows overall program structure
+
 
 \section{Recursive Systemic Profiler}
 
@@ -53,7 +77,7 @@ Sometimes a process switches out because the CPU it's on has received an interru
 
 For non-interrupts, one process wakes another up and then goes to sleep itself.  In this case, we say that one process has ``transfered'' control to another.  When it does not, we say that the thread of control has ``forked''.
 
-\subsection{Pseudostacks and Control Pathes}
+\subsection{Pseudo-stacks and Control Paths}
 
 A set of runs connected only by transfer links can be called a ``control path''.
 
