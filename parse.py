@@ -49,6 +49,10 @@ def parse(fn):
                 m=re.match('([a-zA-Z_]*)=(.*)',i)
                 if m:
                     setattr(ev.args, m.group(1), m.group(2))
+                else:
+                    if not hasattr(ev.args, 'raw'):
+                        ev.args.raw=[]
+                    ev.args.raw.append(i)
             evs.append(ev)
             continue
         m=re.search('[0-9a-f]* ([^ ]*) \\((.*)\\)',line)
@@ -62,12 +66,14 @@ def parse(fn):
     switchedin={}
     switchedout={}
     switchedoutstack={}
+    bio_for={}
     inlinks=defaultdict(lambda:[])
     outlinks=defaultdict(lambda:[])
     runs=defaultdict(lambda:[])
     sleeps=defaultdict(lambda:[])
     runningstacks={}
     links=[]
+    bios=[]
 
     starttime=evs[0].time
     endtime=evs[-1].time
@@ -126,6 +132,8 @@ def parse(fn):
                         inlink.end=inlink.start
                     runs[oldp][-1].inlink=inlink
                 inlinks[oldp]=[]
+            if ev.time==16533.094640:
+                print 'outlinkcnt[%s]=%d' % (oldp,len(outlinks[oldp]))
             if outlinks[oldp]:
                 for outlink in outlinks[oldp]:
                     outlink.outtime=ev.time
@@ -133,34 +141,54 @@ def parse(fn):
                 outlinks[oldp]=[]
             is_interrupt=False
             for frame in ev.stack:
-                if frame.function in ['retint_careful']:
+                if frame.function in ['retint_careful', 'jbd2_journal_commit_transaction']:
                     is_interrupt=True
                     break
             if is_interrupt:
                 links.append(struct(source=oldp,target=oldp,start=ev.time,outtime=ev.time,sourcerun=runs[oldp][-1],horizontal=True))
                 inlinks[oldp].append(links[-1])
-        elif ev.event=='sched:sched_wakeup':
+        elif ev.event in ['sched:sched_wakeup', 'sched:sched_process_fork']:
+            source='%s(%s)'%(ev.comm,ev.pid)
+            if ev.event=='sched:sched_wakeup':
+                target='%s(%s)'%(ev.args.comm, ev.args.pid)
+            else:
+                target='%s(%s)'%(ev.args.child_comm, ev.args.child_pid)
             is_interrupt=False
+            is_bio=False
             for frame in ev.stack:
                 if frame.function in ['do_IRQ', 'apic_timer_interrupt']:
                     is_interrupt=True
-                    break
+                if frame.function in ['bio_endio']:
+                    is_bio=True
+            if is_bio:
+                if target in bio_for:
+                    bio_for[target].end=ev.time
+                    links.append(struct(source=bio_for[target].proc, sourcerun=bio_for[target], target=target, start=ev.time, outtime=ev.time))
+                    inlinks[target].append(links[-1])
+                    bios.append(bio_for[target])
+                    del bio_for[target]
             if is_interrupt:
                 continue
-            source='%s(%s)'%(ev.comm,ev.pid)
-            target='%s(%s)'%(ev.args.comm, ev.args.pid)
             links.append(struct(source=source,target=target,start=ev.time))
             inlinks[target].append(links[-1])
-            if ev.pid==int(ev.args.pid): #exactly what a process waking itself means is unclear, but it happens
+            if ev.event=='sched:sched_wakeup' and ev.pid==int(ev.args.pid): #exactly what a process waking itself means is unclear, but it happens
                 links[-1].outtime=ev.time
             else:
                 outlinks[source].append(links[-1])
+        elif ev.event=='block:block_bio_queue':
+            proc='%s(%s)'%(ev.comm,ev.pid)
+            dev='dev=%s'%ev.args.raw[0]
+            bio_for[proc]=struct(start=ev.time, proc=dev, type='bio')
+            links.append(struct(source=proc,target=dev,targetrun=bio_for[proc],start=ev.time))
+            outlinks[source].append(links[-1])
         elif ev.event=='sched:sched_process_exec':
             source='%s(%d)'%(ev.oldcomm,ev.pid)
             target='%s(%d)'%(ev.comm,ev.pid)
-            links.append(struct(source=source, start=ev.time, target=target, end=ev.time,outtime=ev.time))
+            links.append(struct(source=source, start=ev.time, target=target, end=ev.time,outtime=ev.time,horizontal=True))
             if source in switchedin and switchedin[source]!=-1:
                 runs[source].append(struct(start=switchedin[source], end=ev.time))
+                if sleeps[source]:
+                    runs[source][-1].prev=sleeps[source][-1]
                 links[-1].sourcerun=runs[source][-1]
             inlinks[target].append(links[-1])
             switchedin[source]=-1
@@ -218,14 +246,18 @@ def parse(fn):
         boxes+=runs[p]
     for p in sleeps:
         boxes+=sleeps[p]
+    boxes+=bios
 
     for b in boxes:
         b.wdata=defaultdict(lambda:struct())
 
-    procs=set(runs.keys()) | set(sleeps.keys());
+    procs=set(runs.keys()) | set(sleeps.keys())
+    for b in bios:
+        procs.add(b.proc)
     
     return struct(runs=runs, 
                   sleeps=sleeps, 
+                  bios=bios,
                   links=links, 
                   boxes=boxes, 
                   procs=procs, 

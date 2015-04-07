@@ -16,6 +16,7 @@
 
 \begin{abstract}
 The first task in writing any performant code is to understand where it is spending its time. This allows programmers both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where processes spend their time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose and implement a Recursive Systemic Profiler, a tool that can give a more complete view of the causes of an application’s performance in Linux system.
+\end{abstract}
 
 \section{Introduction}
 Even though premature optimization is the root of all evil, profiling the performance of a system is critical for its improvement. Profiling is, however, no small task: WHY. As systems become more complex, it is becoming increasingly important to become familiar with several profiling tools that can aid in understanding them. The motivation of the Recursive Systemic Profiler is simple: to show how processes spend their time. This allows programmers and system administrators to answer questions like: Why is this process slow? What is it waiting on? What is the reason it is spending this many resources?
@@ -30,7 +31,7 @@ In order to make sense of the performance of a system, one first need to collect
 
 Event-based tools work by instrumenting programs: they insert marks at different points of a system and trigger an event when the profiled application runs into them. These events can trigger simple data-collection actions like incrementing a counter, but they can also perform more complicated tasks like generating stack dumps or generating some kind of logging.
 
-Sample-based tools work by collecting samples of programs at regular intervals.  Samples be performance counters, stack traces, or something else of relevance. These kinds of profilers are typically less accurate than event-based profilers since they rely on , but they since they don't introduce the overhead of generating events, they are usually less intrusive with respect with the profiled application.
+Sample-based tools work by collecting samples of programs at regular intervals.  Samples be performance counters, stack traces, or something else of relevance. These kinds of profilers are typically less accurate than event-based profilers since they rely on, but they since they don't introduce the overhead of generating events, they are usually less intrusive with respect with the profiled application.
 
 A third approach combines event-based and sample-based profiling.
 
@@ -126,7 +127,7 @@ The x axis is still time, but now the y axis is stack depth.
 
 \pretolerance=1000
 
-All data is collected from Linux Perf Events, using the \\ \begin{tt}sched:sched\_wakeup\end{tt}, \begin{tt}sched:sched\_switch\end{tt}, \\ \begin{tt}sched:sched\_process\_exec,\end{tt} and \begin{tt}cycles\end{tt} events.  The data is then dumped in a textual format using the \begin{tt}perf script\end{tt} command.
+All data is collected from Linux Perf Events, using \\* the \begin{tt}sched:sched\_wakeup\end{tt}, \begin{tt}sched:sched\_switch\end{tt}, \\* \begin{tt}sched:sched\_process\_exec,\end{tt} \begin{tt}sched:sched\_process\\*\_fork,\end{tt} \begin{tt}block:block\_bio\_queue,\end{tt} and \begin{tt}cycles\end{tt} events.  The data is then dumped in a textual format using the \begin{tt}perf script\end{tt} command.
 
 \pretolerance=200
 
@@ -136,27 +137,53 @@ The first processing pass simply reads in text and creates a series of event obj
 
 The data is then read into a  state machine that creates runs, sleeps and links.  While passing through, the system keeps track of when each process last started or stopped, what stack each process departed with, and what links are still being assembled.  Links have three timestamps attached: when the wakeup event occurred, when the target process started running, and when the source process stopped running.
 
+Links are created not only from wakeup events, but also from fork and exec.
+
 Links for which the source process stopped less than $100\mu s$ after the wakeup event are regarded as ``transfer'' links.  This number is arbitrary, but seems to work pretty well in practice.
 
 \subsubsection{Working Around Interrupts}
 
-Wakeup events can be identified as interrupts if the departing stack contains either \begin{tt}do\_IRQ\end{tt} or \begin{tt}apic\_timer\_interrupt\end{tt}.  For interrupts, we do not make a link between the processes, but instead make a link between the two runs of the interrupted process that have the interrupt in between them.  This link is marked as ``horizontal'', because it does not correspond to a change of stack layer.
+Wakeup events can be identified as interrupts if the departing stack contains either \begin{tt}do\_IRQ\end{tt} or\\ \begin{tt}apic\_timer\_interrupt\end{tt}.  For interrupts, we do not make a link between the processes, but instead make a link between the two runs of the interrupted process that have the interrupt in between them.  This link is marked as ``horizontal'', because it does not correspond to a change of stack layer.
 
 \subsubsection{Recursive Stack Making}
 
 We assemble pseudostacks recursively, going backwards in time.  We start with the process of interest, then look at what woke it and so on.  All wakings are seen as going deeper into the stack unless this would cause a process to appear on the stack twice.  Since a process that is blocked, waiting on the thing it spawned to finish is not listening to other processes, we generally shouldn't one process twice.  There are a few possibilities involving select calls which we will simply accept a suboptimal visualization of, and signals, which are rare.
 
+\subsubsection{Blocking IO}
+
+If a process makes a blocking IO syscall, it will stop, wait for the call to complete, and start again without producing the events discussed thus far.  A process that blocks does create a \begin{tt}block:block\_bio\_queue\end{tt}, but unblocking does not create one (there exists a \begin{tt}block:block\_bio\_complete\end{tt} event, but it doesn't fire in this case, or at least not on our system.  We do, however, see a wakeup event when blocking IOs finish.  The event comes from a swapper thread, but it can be recognized by the function \begin{tt}bio\_endio\end{tt} on its stack.  This does not help us to determine which blocking IO has completed, but we assume it's the same one the thread being woken blocked on.  Once we have this concept of ``a blocking io operation'', we can treat it as a box like a run or a sleep.
+
 \subsubsection{Consolidating}
+
+One thing we have not yet written is a consolidator, that will convert temporal graphs into most-to-least graphs.
+
 \subsubsection{Visualizing}
 
 All visualizations are drawn using gtk.
 
 \section{Evalutation}
 \subsection{squirrelmail}
-\subsubsection{Visualization}
-\subsubsection{How Much Is Explained}
-\subsubsection{Comparisons}
+
+Squirrelmail is a popular, open-source webmail server.  It does not provide its own mail handling, but instead contains an imap client.  Naively, one might think the chain of operations was browser sends tcp to web server forks php interpereter sends tcp to imap server returns data.  In fact, the php interpreter is built into apache (at least in our configuration) and the imap server (dovecot) is rather more complex.  It calls to two other programs: imap and imap-login, the latter of which calls a program called ``auth''.
+
+In fact, auth is where roughly half of the time to produce the webpage is spent.  Of that, one third is spent in computation, mostly sha512, and the rest is spent syncing disks.  The rest of the time is spread about evenly among dovecot, apache and curl.  Very little time remains unaccounted for.
+
+In is unlikely that anyone would guess that most of the time in reading an inbox was spent syncing disk as part of an authentication routine.  Nor can it be easily imagined that any other tool would allow us to discover this.  Furthermore, it seems likely (without looking at auth) that the syncs are unnecessary, and performance could be significantly improved.
+
+A screenshot of the full visualization follows, though it is much more informative with zooming and scrolling than on paper.
+
 \subsection{Other tests}
-\subsubsection{apt-get}
-\subsubsection{chrome load}
+
+We plan to run other tests as well, including apt-get, window drag in plasma-desktop and complex webpage rendering.
+
+\newpage
+
+$ $
+
+\newpage
+
+\begin{figure}
+\includegraphics[width=6in]{squirrelmail}
+\end{figure}
+
 \end{document}

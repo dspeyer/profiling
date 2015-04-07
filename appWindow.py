@@ -77,6 +77,9 @@ class AppWindow:
         self.purple_gc =  self.content.window.new_gc()
         self.purple_gc.copy(self.gc)
         self.purple_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=57343, green=32768, blue=65535))
+        self.green_gc =  self.content.window.new_gc()
+        self.green_gc.copy(self.gc)
+        self.green_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=32768, green=65535, blue=32768))
 
         self.timing.realize()
 
