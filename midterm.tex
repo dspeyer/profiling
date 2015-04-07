@@ -14,14 +14,31 @@
 \end{@twocolumnfalse}
 ]
 
-\section{Abstract}
-The first task in writing any performant code is to understand where it is spending its time. This allows you both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where the process spends its time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose a system that can give a more complete view of the causes of an application’s performance in a Linux system.
+\begin{abstract}
+The first task in writing any performant code is to understand where it is spending its time. This allows programmers both to apply optimizations where they will make a difference, and to not optimize where it won't make a difference. The standard tools for this are profilers, which measure where processes spend their time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose and implement a Recursive Systemic Profiler, a tool that can give a more complete view of the causes of an application’s performance in Linux system.
+
+We show that 
+
+Preliminary
+data from several weeks of continuous use on our workstations
+shows that Arnold’s storage requirements for 4
+or more years of usage can be satisfied by adding a 4 TB
+hard drive to the system.1 Further, the performance overhead
+on almost all workloads we measured was under
+8\%. We show that Arnold can reconstruct prior state and
+answer lineage queries, including backward queries (on
+what did this item depend?) and forward queries (what
+other state did this item affect?)
+\end{abstract}
+
 \section{Introduction}
 Even though premature optimization is the root of all evil, profiling the performance of a system is critical for its improvement. Profiling is, however, no small task: WHY. As systems become more complex, it is becoming increasingly important to become familiar with several profiling tools that can aid in understanding them. The motivation of the Recursive Systemic Profiler is simple: to show how processes spend their time. This allows programmers and system administrators to answer questions like: Why is this process slow? What is it waiting on? What is the reason it is spending this many resources?
 
 We know from experience that, most of the time, the slowness of systems comes from very specific parts of the codebase (as opposed to the entire system). As programmers, we want to be able to identify where this is so we can optimize that and not waste time optimizing other, unimportant parts.
 
 We present RSP, which blah.
+The rest of the paper is organized as follows. Section 2 lays out the background 
+
 \section{Background: Data Collectors}
 In order to make sense of the performance of a system, one first need to collect data. There are several open source profiling tools that focus on this task. We can classify them in three different groups by the approach they use to collect information: event-based, sample-based and a combination of both. 
 
@@ -41,11 +58,18 @@ Since creating a profiler from scratch would have been a daunting task (to say t
 
 \subsection{Linux Perf Events}
 
-Linux perf events, also known as perf\_events or just perf, has the advantage of being a mature tool that can collect system-wide information on an event-oriented fashion. In addition to being actively developed, perf is part of the Linux kernel itself, so not much extra software is needed in order for one to start profiling applications. perf is able to use hardware events like CPU cycles or memory cache misses; software events like CPU migrations or minor faults; as well as other higher-level behavior like system calls, TCP events, disk and file system I/O, etc.
+Linux Perf Events, also known as perf\_events or just perf, compared to other tools like ftrace or lttng, has the advantage of being a mature and actively developed tool that can collect system-wide information in an event-oriented fashion: it is able to tap into hardware events like CPU cycles and memory cache misses; software events like CPU migrations and minor faults; as well as high-level behavior like system calls, TCP events, disk and file system I/O, etc.
 
-\section{Other Visualizations}
+One other characteristic we needed in a tool was the confidence that it was  In addition to these characteristics, perf is part of the Linux kernel itself, so not much extra software is needed in order for one to start profiling applications.
+
+\section{Visualizations}
+Visualizations are at the heart of the Recursive Systemic Profiler. Not only do visualizations help to understand what's happening in a system in a shorter period of time compared to looking at plain old statistics, but they also show at-a-glance information that can easily be missed when only reading raw numbers. After evaluating several approaches of data visualization for profilers, we felt we needed to emulate something akin to flame graphs.
 
 \subsection{Flame Graphs}
+Flame Graphs, a visualization tool invented by Brendan Gregg, are a simple way to visualize stack traces. Stack traces contain the names of the functions being executed by the CPU at any given time. Flame graphs present this information in a hierarchical manner, in such a way that one can easily tell which function called which other function, in a clear, chain-like manner.
+
+Flame graphs also have the characteristic  are able to show at a glance overall hot-spots shows overall program structure
+
 
 \section{Recursive Systemic Profiler}
 
@@ -67,7 +91,7 @@ Sometimes a process switches out because the CPU it's on has received an interru
 
 For non-interrupts, one process wakes another up and then goes to sleep itself.  In this case, we say that one process has ``transfered'' control to another.  When it does not, we say that the thread of control has ``forked''.
 
-\subsection{Pseudostacks and Control Pathes}
+\subsection{Pseudo-stacks and Control Paths}
 
 A set of runs connected only by transfer links can be called a ``control path''.
 
