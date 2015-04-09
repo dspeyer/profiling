@@ -25,6 +25,9 @@ class AppWindow:
         zi.connect('clicked', self.zoom, 2)
         zo=gtk.Button('Zoom Out')
         zo.connect('clicked', self.zoom, 0.5)
+        self.raw_times = False;
+        rt=gtk.ToggleButton('Raw Times')
+        rt.connect('clicked', self.toggle_raw_times)
 
         vscroll = gtk.ScrolledWindow()
         vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
@@ -52,6 +55,7 @@ class AppWindow:
         mainVBox.pack_start(hscrollbar, expand=False, fill=False)
         self.toolbar.add(zi)
         self.toolbar.add(zo)
+        self.toolbar.add(rt)
         vscroll.add_with_viewport(hbox)
         hbox.pack_start(self.legend, expand=False, fill=False)
         hbox.pack_start(hscroll, expand=True, fill=True)
@@ -107,13 +111,37 @@ class AppWindow:
         self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width+lwidth, self.rowheight)
         gc = self.timing.get_style().fg_gc[gtk.STATE_NORMAL]
         gap=(150./self.width)*(self.endtime-self.starttime)
-        t=self.starttime
-        while t<self.endtime:
+        if not self.raw_times:
+            pt=10 ** math.floor(math.log(gap,10))
+            mant=gap/pt
+            mant=int(math.ceil(mant))
+            gap=mant*pt
+        t=0
+        while t+self.starttime<self.endtime:
             layout=pango.Layout(self.font)
-            layout.set_text('%f'%t)
-            self.timingpixmap.draw_layout(gc, self.xfromt(t)+lwidth, 0, layout)
+            if self.raw_times:
+                layout.set_text('%f'%(self.starttime+t))
+            else:
+                if gap > 1:
+                    layout.set_text('%ds' % round(t))
+                elif gap > 1e-3:
+                    layout.set_text('%ds %dms' % (int(t), round(1e3*(t%1))))
+                elif gap > 1e-6:
+                    layout.set_text('%ds %dms %dus' % (int(t), int(1e3*(t%1)), round(1e6*(t%1e-3))))
+                elif gap > 1e-9:
+                    layout.set_text('%ds %dms %dus %dns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), round(1e9*(t%1e-6))))
+                else:
+                    layout.set_text('%ds %dms %dus %fns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), 1e9*(t%1e-6)))
+            x = self.xfromt(self.starttime+t)+lwidth
+            self.timingpixmap.draw_line(gc, x, 0, x, 10)
+            self.timingpixmap.draw_layout(gc, x+2, 0, layout)
             t+=gap
         self.timing.queue_draw_area(0, 0, self.width, self.rowheight)
+
+    def toggle_raw_times(self, event):
+        self.raw_times = not self.raw_times
+        self.redraw_time()
+
 
 
     def zoom(self, widget, ratio):
