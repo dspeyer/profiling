@@ -12,6 +12,8 @@ class AppWindow:
 
         self.starttime=starttime
         self.endtime=endtime
+        self.starttimelabels=starttime
+        self.endtimelabels=endtime
 
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_default_size(800,600)
@@ -107,20 +109,21 @@ class AppWindow:
 
     def redraw_time(self):
         lx, ly, lwidth, lheight = self.legend.get_allocation()
+        self.lwidth=lwidth
         self.timing.set_size_request(self.width+lwidth, self.rowheight)
         self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width+lwidth, self.rowheight)
         gc = self.timing.get_style().fg_gc[gtk.STATE_NORMAL]
-        gap=(150./self.width)*(self.endtime-self.starttime)
+        gap=(150./self.width)*(self.endtimelabels-self.starttimelabels)
         if not self.raw_times:
             pt=10 ** math.floor(math.log(gap,10))
             mant=gap/pt
             mant=int(math.ceil(mant))
             gap=mant*pt
         t=0
-        while t+self.starttime<self.endtime:
+        while t+self.starttimelabels<self.endtimelabels:
             layout=pango.Layout(self.font)
             if self.raw_times:
-                layout.set_text('%f'%(self.starttime+t))
+                layout.set_text('%f'%(self.starttimelabels+t))
             else:
                 if gap > 1:
                     layout.set_text('%ds' % round(t))
@@ -132,7 +135,7 @@ class AppWindow:
                     layout.set_text('%ds %dms %dus %dns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), round(1e9*(t%1e-6))))
                 else:
                     layout.set_text('%ds %dms %dus %fns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), 1e9*(t%1e-6)))
-            x = self.xfromt(self.starttime+t)+lwidth
+            x = self.xfromt(self.starttimelabels+t)+lwidth
             self.timingpixmap.draw_line(gc, x, 0, x, 10)
             self.timingpixmap.draw_layout(gc, x+2, 0, layout)
             t+=gap
@@ -167,8 +170,9 @@ class AppWindow:
         #widget.window.draw_rectangle(self.blue_gc, True, x, y, width, height)
         #print "copying %d...%d from a %d wide pixmap"%(x-self.offset, x-self.offset+width, self.__dict__[pmname].get_size()[0])
         widget.window.draw_drawable(self.gc, self.__dict__[pmname], x-self.offset, y, x, y, width, height)
-        if x+width > self.width:
-            widget.window.draw_rectangle(self.grey_gc, True, self.width+1, y, x+width-self.width, height)
+        widthToShow = self.width + (self.lwidth if pmname=='timingpixmap' else 0)
+        if x+width > widthToShow:
+            widget.window.draw_rectangle(self.grey_gc, True, widthToShow+1, y, x+width-widthToShow, height)
         if y+height > self.height:
             widget.window.draw_rectangle(self.grey_gc, True, x, self.height+1, width, y+height-self.height)
         return False
