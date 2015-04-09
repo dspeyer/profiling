@@ -91,8 +91,13 @@ class FlameWindow(AppWindow):
                         y-=self.rowheight
                     merged=True
             elif box.type=='run':
-                self.put_frame('?', box.start, box.end, y, box.type, merged)
-                y-=self.rowheight
+                try:
+                    for frame in reversed(box.inlink.sourcerun.stacks[-1]):
+                        merged=self.put_frame(frame.function, box.start, box.end, y, box.type, merged)
+                        y-=self.rowheight
+                except (AttributeError,IndexError) as e:
+                    self.put_frame('?', box.start, box.end, y, box.type, merged)
+                    y-=self.rowheight
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged)
 
