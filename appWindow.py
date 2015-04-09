@@ -124,9 +124,6 @@ class AppWindow:
         self.redraw_time()
 
     def expose_event(self, widget, event, pmname):
-        if self.finish_expose_event != self.start_expose_event:
-            print '%d!=%d'%(self.finish_expose_event,self.start_expose_event)
-        self.start_expose_event+=1
         x , y, width, height = event.area
         #print "x=%d y=%d w=%d h=%d hadj=%f offset=%d pmwidth=%d"%(x,y,width,height,self.hadj.get_value(),self.offset,self.pmwidth)
         if x-self.offset<0 or x+width-self.offset>self.pmwidth:
@@ -142,7 +139,10 @@ class AppWindow:
         #widget.window.draw_rectangle(self.blue_gc, True, x, y, width, height)
         #print "copying %d...%d from a %d wide pixmap"%(x-self.offset, x-self.offset+width, self.__dict__[pmname].get_size()[0])
         widget.window.draw_drawable(self.gc, self.__dict__[pmname], x-self.offset, y, x, y, width, height)
-        self.finish_expose_event+=1
+        if x+width > self.width:
+            widget.window.draw_rectangle(self.grey_gc, True, self.width+1, y, x+width-self.width, height)
+        if y+height > self.height:
+            widget.window.draw_rectangle(self.grey_gc, True, x, self.height+1, width, y+height-self.height)
         return False
 
     def xfromt(self,t):

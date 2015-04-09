@@ -38,7 +38,7 @@ class MainWindow(AppWindow):
     def toggle_summary(self, event):
         if 'includeInSummary' not in self.__dict__:
             self.includeInSummary={}
-            for p in self.data.runs:
+            for p in self.data.procs:
                 time=0
                 for r in self.data.runs[p]:
                     time+=r.end-r.start
@@ -68,8 +68,9 @@ class MainWindow(AppWindow):
         else:
             self.links=self.real_links
         self.pick_heights()
-        self.redraw()        
-        self.redraw_times()
+        self.content.set_size_request(self.width, self.height)
+        self.redraw()
+        self.redraw_time()
 
     def pick_heights(self):
         # This whole connectedness thing is just to pick heights that group related processes together
