@@ -217,7 +217,8 @@ def parse(fn):
                 if frame.file!='[kernel.kallsyms]':
                     s.repframe=frame.function
                     break
-                s.repframe='?'
+            if 'repframe' not in s.__dict__ and len(s.stack)>0: # all kernel
+                s.repframe = s.stack[0].function
 
     # Mark boxes with types
     for p in runs:
