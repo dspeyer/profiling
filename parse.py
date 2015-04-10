@@ -147,6 +147,7 @@ def parse(fn):
             if is_interrupt:
                 links.append(struct(source=oldp,target=oldp,start=ev.time,outtime=ev.time,sourcerun=runs[oldp][-1],horizontal=True))
                 inlinks[oldp].append(links[-1])
+                runs[oldp][-1].horizoutlink=links[-1]
         elif ev.event in ['sched:sched_wakeup', 'sched:sched_process_fork']:
             source='%s(%s)'%(ev.comm,ev.pid)
             if ev.event=='sched:sched_wakeup':
@@ -190,6 +191,7 @@ def parse(fn):
                 if sleeps[source]:
                     runs[source][-1].prev=sleeps[source][-1]
                 links[-1].sourcerun=runs[source][-1]
+                runs[source][-1].horizoutlink=links[-1]
             inlinks[target].append(links[-1])
             switchedin[source]=-1
             switchedin[target]=ev.time

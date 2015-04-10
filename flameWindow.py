@@ -91,12 +91,26 @@ class FlameWindow(AppWindow):
                         y-=self.rowheight
                     merged=True
             elif box.type=='run':
+                stack=None
                 try:
-                    for frame in reversed(box.inlink.sourcerun.stacks[-1]):
-                        merged=self.put_frame(frame.function, box.start, box.end, y, box.type, merged)
-                        y-=self.rowheight
+                    i=box
+                    while i.inlink.horizontal and len(i.stacks)==0:
+                        i=i.inlink.sourcerun
+                    stack=reversed(i.stacks[-1])
                 except (AttributeError,IndexError) as e:
-                    self.put_frame('?', box.start, box.end, y, box.type, merged)
+                    pass
+                if not stack:
+                    try:
+                        i=box
+                        while len(i.stacks)==0:
+                            i=i.horizoutlink.targetrun
+                        stack=reversed(i.stacks[0])
+                    except (AttributeError,IndexError) as e:
+                        pass
+                if not stack:
+                    stack=[struct(function='?',file='?')]
+                for frame in stack:
+                    merged=self.put_frame(frame.function, box.start, box.end, y, box.type, merged)
                     y-=self.rowheight
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged)
