@@ -4,6 +4,7 @@ from collections import defaultdict
 from copy import copy
 
 from appWindow import AppWindow
+from consolidatedWindow import ConsolidatedWindow
 from parse import struct
 
 grace=1e-3
@@ -15,6 +16,7 @@ class FlameWindow(AppWindow):
         self.endtimelabels=data.endtime
         self.window.set_title('Flameview: '+target)
 
+        self.target=target
         self.data=data
         self.boxes=data.boxes
         self.links=data.links
@@ -39,6 +41,10 @@ class FlameWindow(AppWindow):
             'proc': self.grey_gc,
             'bio': self.green_gc
         }
+
+        cons = gtk.Button('Consolidated View')
+        self.toolbar.add(cons)
+        cons.connect('clicked', self.launchConsolidatedWindow)
 
         self.redraw()
         self.window.show_all()
@@ -222,3 +228,6 @@ class FlameWindow(AppWindow):
 
     def physFromLogY(self, logY):
         return  (self.lheight-logY-1)*self.rowheight
+
+    def launchConsolidatedWindow(self, ev):
+        ConsolidatedWindow(self.data, [self.roots[i] for i in self.roots], self.id, self.target)

@@ -18,7 +18,7 @@ class AppWindow:
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_default_size(800,600)
 
-        mainVBox = gtk.VBox()
+        self.mainVBox = gtk.VBox()
         hbox = gtk.HBox()
 
         self.toolbar = gtk.HBox()
@@ -50,11 +50,11 @@ class AppWindow:
         self.hadj=adjustment=hscroll.get_hadjustment()
         hscrollbar = gtk.HScrollbar(self.hadj)
 
-        self.window.add(mainVBox)
-        mainVBox.pack_start(self.toolbar, expand=False, fill=False)
-        mainVBox.pack_start(vscroll, expand=True, fill=True)
-        mainVBox.pack_start(tscroll, expand=False, fill=False)
-        mainVBox.pack_start(hscrollbar, expand=False, fill=False)
+        self.window.add(self.mainVBox)
+        self.mainVBox.pack_start(self.toolbar, expand=False, fill=False)
+        self.mainVBox.pack_start(vscroll, expand=True, fill=True)
+        self.mainVBox.pack_start(tscroll, expand=False, fill=False)
+        self.mainVBox.pack_start(hscrollbar, expand=False, fill=False)
         self.toolbar.add(zi)
         self.toolbar.add(zo)
         self.toolbar.add(rt)
