@@ -139,7 +139,26 @@ class FlameWindow(AppWindow):
     def finalize_frame(self, frame, y):
         self.draw_rectangle(self.gcByType[frame.typ], frame.start, frame.end, y, frame.text)
 
-
+    def de_facto_start(self, sleep):
+        try:
+            prevrun=sleep.prev
+            prevsleep=prevrun.prev
+            if prevrun.end-prevrun.start > 1e-4:
+                return sleep.start
+            if prevsleep.stack != sleep.stack:
+                return sleep.start
+            is_timeouty_wait=False
+            for frame in sleep.stack:
+                if frame.function=='poll_schedule_timeout':
+                    is_timeouty_wait=True
+                    break
+            if not is_timeouty_wait:
+                return sleep.start
+            if 'inlink' in prevrun.__dict__:
+                return sleep.start
+            return self.de_facto_start(prevsleep)
+        except AttributeError as e:
+            return sleep.start            
 
     def rtag(self, box, parent, stack=[], cp=0):
         d=box.wdata[self.id]
@@ -148,16 +167,13 @@ class FlameWindow(AppWindow):
         if parent:
             if 'cp' not in parent.wdata[self.id].__dict__:
                 return
-            if box.start+grace<parent.start or box.end-grace>parent.end:
-                #if box.type=='run':
-                    if box.proc in ['imap(492)', 'apache2(16380)']:
-                        print 'making %s(%f-%f) a new cp'%(box.proc,box.start,box.end)
-                    self.maxcp+=1
-                    d.cp=self.maxcp
-                    d.bottom=0
-                    parent=None
-                #else:
-                #    return
+            if box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
+                if box.proc in ['imap(492)', 'apache2(16380)']:
+                    print 'making %s(%f-%f) a new cp'%(box.proc,box.start,box.end)
+                self.maxcp+=1
+                d.cp=self.maxcp
+                d.bottom=0
+                parent=None
             else:
                 d.parent=parent
                 if 'children' not in parent.wdata[self.id].__dict__:

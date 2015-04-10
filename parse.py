@@ -8,6 +8,8 @@ class struct:
     def __init__(self,**kwargs):
         for k in kwargs:
             setattr(self,k,kwargs[k])
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
 
 def parse(fn):
     f = file(fn)
@@ -170,7 +172,7 @@ def parse(fn):
                     del bio_for[target]
             if is_interrupt:
                 continue
-            links.append(struct(source=source,target=target,start=ev.time))
+            links.append(struct(source=source,target=target,start=ev.time,stack=ev.stack))
             inlinks[target].append(links[-1])
             if ev.event=='sched:sched_wakeup' and ev.pid==int(ev.args.pid): #exactly what a process waking itself means is unclear, but it happens
                 links[-1].outtime=ev.time

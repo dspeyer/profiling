@@ -100,6 +100,8 @@ class AppWindow:
 
         self.font = self.window.create_pango_context()
 
+        self.rectmargin=0
+
         self.width=2000
         self.rowheight=20
 
@@ -183,6 +185,8 @@ class AppWindow:
     def draw_rectangle(self, gc, start, end, h, text):
         x1 = self.xfromt(start)
         x2 = self.xfromt(end)
+        if x2-x1>self.rectmargin:
+            x2-=self.rectmargin
         if x2<0 or x1>self.pmwidth:
             return
         y1 = h
