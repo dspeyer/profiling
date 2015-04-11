@@ -41,7 +41,7 @@ def parse(fn):
                 else:
                     ev.oldcomm='unknown(%d)'%ev.pid
             elif ev.pid in commbypid:
-                if (commbypid[ev.pid]!=ev.comm):
+                if (commbypid[ev.pid]!=ev.comm and ev.pid!=0):
                     fake_ev=struct()
                     fake_ev.comm=ev.comm
                     fake_ev.pid=ev.pid
@@ -51,14 +51,19 @@ def parse(fn):
                     #print "WARNING: deduced exec call by %d from %s to %s at %f" % (ev.pid, fake_ev.oldcomm, ev.comm, ev.time)
                     evs.append(fake_ev)
             commbypid[ev.pid]=ev.comm
+            prevkey=None
             for i in args.split(' '):
                 m=re.match('([a-zA-Z_]*)=(.*)',i)
                 if m:
                     setattr(ev.args, m.group(1), m.group(2))
+                    prevkey=m.group(1)
                 else:
-                    if not hasattr(ev.args, 'raw'):
-                        ev.args.raw=[]
-                    ev.args.raw.append(i)
+                    if prevkey:
+                        ev.args.__dict__[prevkey] += ' ' + i
+                    else:
+                        if not hasattr(ev.args, 'raw'):
+                            ev.args.raw=[]
+                        ev.args.raw.append(i)
             # keep track of children and nexts so that we dont't assume they're doing work
             if 'child_comm' in ev.args.__dict__:
                 commbypid[int(ev.args.child_pid)] = ev.args.child_comm
