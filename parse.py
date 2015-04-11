@@ -29,6 +29,10 @@ def parse(fn):
             (ev.comm, ev.pid, ev.time, ev.event, args) = m.groups()
             ev.pid = int(ev.pid)
             ev.time = float(ev.time)
+            # Add some nanoseconds for the case where the events happen too fast that they have the same time
+ 	    if len(evs) > 0:
+		if ev.time <= evs[-1].time:
+		   ev.time = evs[-1].time + 1e-9
             ev.args = struct()
             ev.stack = []
             if ev.event=='sched:sched_process_exec':
@@ -55,6 +59,11 @@ def parse(fn):
                     if not hasattr(ev.args, 'raw'):
                         ev.args.raw=[]
                     ev.args.raw.append(i)
+            # keep track of children and nexts so that we dont't assume they're doing work
+            if 'child_comm' in ev.args.__dict__:
+                commbypid[int(ev.args.child_pid)] = ev.args.child_comm
+            if 'next_comm' in ev.args.__dict__:
+                commbypid[int(ev.args.next_pid)] = ev.args.next_comm
             evs.append(ev)
             continue
         m=re.search('[0-9a-f]* ([^ ]*) \\((.*)\\)',line)
