@@ -113,7 +113,7 @@ class AppWindow:
         lx, ly, lwidth, lheight = self.legend.get_allocation()
         self.lwidth=lwidth
         self.timing.set_size_request(self.width+lwidth, self.rowheight)
-        self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width+lwidth, self.rowheight)
+        self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.pmwidth, self.rowheight)
         gc = self.timing.get_style().fg_gc[gtk.STATE_NORMAL]
         gap=(150./self.width)*(self.endtimelabels-self.starttimelabels)
         if not self.raw_times:
@@ -138,8 +138,9 @@ class AppWindow:
                 else:
                     layout.set_text('%ds %dms %dus %fns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), 1e9*(t%1e-6)))
             x = self.xfromt(self.starttimelabels+t)+lwidth
-            self.timingpixmap.draw_line(gc, x, 0, x, 10)
-            self.timingpixmap.draw_layout(gc, x+2, 0, layout)
+            if x < self.pmwidth and x+layout.get_pixel_size()[0] > 0 :
+                self.timingpixmap.draw_line(self.red_gc, x, 0, x, 10)
+                self.timingpixmap.draw_layout(gc, x+2, 0, layout)
             t+=gap
         self.timing.queue_draw_area(0, 0, self.width, self.rowheight)
 
