@@ -107,7 +107,6 @@ class AppWindow:
 
         self.id=AppWindow.id
         AppWindow.id+=1
-        self.redraw_time()
 
     def redraw_time(self):
         lx, ly, lwidth, lheight = self.legend.get_allocation()
@@ -115,7 +114,7 @@ class AppWindow:
         self.timing.set_size_request(self.width+lwidth, self.rowheight)
         self.timingpixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width+lwidth, self.rowheight)
         gc = self.timing.get_style().fg_gc[gtk.STATE_NORMAL]
-        gap=(150./self.width)*(self.endtimelabels-self.starttimelabels)
+        gap=(150./self.width)*(self.endtime-self.starttime)
         if not self.raw_times:
             pt=10 ** math.floor(math.log(gap,10))
             mant=gap/pt
