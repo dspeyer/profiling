@@ -24,16 +24,34 @@ class FlameWindow(AppWindow):
         self.rectmargin=2
 
         self.maxdepth=defaultdict(lambda:0)
+        self.cpstart=defaultdict(lambda:float('inf'))
+        self.cpend=defaultdict(lambda:float('-inf'))
         self.roots=defaultdict(lambda:[])
         self.maxcp=0
         for r in data.runs[target]:
             self.rtag(r,None)
-        self.cpStartHeights=[]
+        self.merge={}
+        for i in xrange(self.maxcp+1):
+            self.merge[i]=i
+            for j in xrange(i):
+                if self.merge[j]!=j:
+                    continue
+                if self.cpstart[i]>self.cpend[j] or self.cpend[i]<self.cpstart[j]:
+                    self.merge[i]=j
+                    if self.maxdepth[i]>self.maxdepth[j]:
+                        self.maxdepth[j]=self.maxdepth[i]
+                    if self.cpstart[i]>self.cpend[j]:
+                        self.cpend[j]=self.cpend[i]
+                    if self.cpend[i]<self.cpstart[j]:
+                        self.cpstart[j]=self.cpstart[i]
+                    break
+        self.cpStartHeights={}
         self.lheight=0
         self.rowheight=20
         for i in range(self.maxcp+1):
-            self.cpStartHeights.append(self.lheight)
-            self.lheight+=self.maxdepth[i]+1
+            if self.merge[i]==i:
+                self.cpStartHeights[i]=self.lheight
+                self.lheight+=self.maxdepth[i]+1
         self.height=self.lheight*self.rowheight
 
         self.gcByType={
@@ -70,8 +88,8 @@ class FlameWindow(AppWindow):
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
-        for y in self.cpStartHeights[:-1]:
-            py=int((self.lheight-y+.5)*self.rowheight)
+        for cp in self.cpStartHeights:
+            py=int((self.lheight-self.cpStartHeights[cp]+.5)*self.rowheight)
             self.draw_line(self.gc, self.data.starttime, py, self.data.endtime, py)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
@@ -186,6 +204,8 @@ class FlameWindow(AppWindow):
         else:
             d.cp=cp
             d.bottom=0
+        self.cpstart[d.cp] = min(self.cpstart[d.cp], box.start)
+        self.cpend[d.cp] = max(self.cpend[d.cp], box.end)
         if d.bottom==0:
             self.roots[d.cp].append(box)
         d.top = d.bottom+self.runheight(box)
@@ -240,7 +260,7 @@ class FlameWindow(AppWindow):
 
 
     def getY(self,run):
-        depth = self.cpStartHeights[run.wdata[self.id].cp] + run.wdata[self.id].bottom
+        depth = self.cpStartHeights[self.merge[run.wdata[self.id].cp]] + run.wdata[self.id].bottom
         out = (self.lheight-depth-1)*self.rowheight
         return out
 
