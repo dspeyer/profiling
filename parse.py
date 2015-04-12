@@ -157,7 +157,7 @@ def parse(fn):
                 outlinks[oldp]=[]
             is_interrupt=False
             for frame in ev.stack:
-                if frame.function in ['retint_careful', 'jbd2_journal_commit_transaction']:
+                if frame.function in ['retint_careful', 'jbd2_journal_commit_transaction', 'wait_for_completion']:
                     is_interrupt=True
                     break
             if is_interrupt:
@@ -204,6 +204,10 @@ def parse(fn):
             links.append(struct(source=source, start=ev.time, target=target, end=ev.time,outtime=ev.time,horizontal=True))
             if source in switchedin and switchedin[source]!=-1:
                 runs[source].append(struct(start=switchedin[source], end=ev.time))
+                for inlink in inlinks[source]:
+                    runs[source][-1].inlink=inlink
+                    inlink.targetrun=runs[source][-1]
+                    inlinks[source]=[]
                 if sleeps[source]:
                     runs[source][-1].prev=sleeps[source][-1]
                 links[-1].sourcerun=runs[source][-1]
