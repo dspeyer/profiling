@@ -21,6 +21,8 @@ class FlameWindow(AppWindow):
         self.boxes=data.boxes
         self.links=data.links
 
+        self.rectmargin=2
+
         self.maxdepth=defaultdict(lambda:0)
         self.roots=defaultdict(lambda:[])
         self.maxcp=0

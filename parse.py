@@ -71,7 +71,7 @@ def parse(fn):
                 commbypid[int(ev.args.next_pid)] = ev.args.next_comm
             evs.append(ev)
             continue
-        m=re.search('[0-9a-f]* ([^ ]*) \\((.*)\\)',line)
+        m=re.search(' *[0-9a-f]* (.*) \\((.*)\\)',line)
         if m and evs:
             evs[-1].stack.append(struct(function=m.group(1),file=m.group(2)))
         else:
@@ -211,7 +211,7 @@ def parse(fn):
             inlinks[target].append(links[-1])
             switchedin[source]=-1
             switchedin[target]=ev.time
-        elif ev.event=='cycles':
+        elif ev.event=='cycles' or ev.event=='cpu-clock':
             proc='%s(%d)'%(ev.comm,ev.pid)
             if proc in runningstacks:
                 runningstacks[proc].append(ev.stack)

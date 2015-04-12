@@ -195,11 +195,12 @@ class AppWindow:
             layout=pango.Layout(self.font)
             layout.set_text(text)
             self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight-1))
-            tw=layout.get_pixel_size()[0]
+            textwidth=layout.get_pixel_size()[0]
+            repeat=int(math.ceil(textwidth/400.0)*400)
             x=x1
-            while x==x1 or x+tw<x2:
+            while x==x1 or x+textwidth<x2:
                 self.pixmap.draw_layout(self.gc, x, y1, layout)
-                x+=max(2*tw,400)
+                x+=repeat
             self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, max(self.width,self.pmwidth), self.height))
 
     def draw_line(self, gc, t1, y1, t2, y2):
