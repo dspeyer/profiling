@@ -73,9 +73,9 @@ class FlameWindow(AppWindow):
         self.content.set_size_request(self.width, self.height)
         self.pixmap.draw_rectangle(self.white_gc, True, 0, 0, self.width, self.height)
         self.ipFrames=defaultdict(lambda:None)
+        self.tentativeFrames=defaultdict(lambda:None)
         for cp in self.roots:
-            print '%d roots at %d'%(len(self.roots[cp]),cp)
-            self.mergeAndDrawBoxes(self.roots[cp], True)
+            self.mergeAndDrawBoxes(self.roots[cp], struct(canon=True,tentative=True))
         for y in self.ipFrames:
             if self.ipFrames[y]:
                 self.finalize_frame(self.ipFrames[y], y)
@@ -83,8 +83,8 @@ class FlameWindow(AppWindow):
         for l in self.links:
             if  ('sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
                  'bottom' in l.sourcerun.wdata[self.id].__dict__ and 
-                 'bottom' in l.targetrun.wdata[self.id].__dict__ and
-                 l.sourcerun.wdata[self.id].cp!=l.targetrun.wdata[self.id].cp):
+                 'bottom' in l.targetrun.wdata[self.id].__dict__):# and
+#                 l.sourcerun.wdata[self.id].cp!=l.targetrun.wdata[self.id].cp):
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
@@ -98,24 +98,32 @@ class FlameWindow(AppWindow):
         if len(boxes)==0:
             return
         for box in sorted(boxes,key=lambda(box):box.start):
+            if 'cutstart' in box.__dict__:
+                cutstart=box.cutstart
+            else:
+                cutstart=box.start
             y=self.getY(box)
-            merged=self.put_frame(box.proc, box.start, box.end, y, 'proc' if box.type!='bio' else 'bio', can_merge_proc)
-            can_merge_proc=True
+            merged=self.put_frame(box.proc, cutstart, box.end, y, 'proc' if box.type!='bio' else 'bio', can_merge_proc)
+            can_merge_proc=struct(canon=True, tentative=True)
             y-=self.rowheight
             if 'stack' in box.__dict__:
                 for frame in reversed(box.stack):
-                    merged=self.put_frame(frame.function, box.start, box.end, y, box.type, merged)
+                    if 'cutstart' in box.__dict__:
+                        text='... '+frame.function
+                    else:
+                        text=frame.function
+                    merged=self.put_frame(text, cutstart, box.end, y, box.type, merged)
                     y-=self.rowheight
             elif 'stacks' in box.__dict__ and len(box.stacks)>0:
                 nstacks=len(box.stacks)
                 for i in range(len(box.stacks)):
                     y=self.getY(box)-self.rowheight
-                    t1=box.start+i*(box.end-box.start)/nstacks
-                    t2=box.start+(i+1)*(box.end-box.start)/nstacks
+                    t1=cutstart+i*(box.end-cutstart)/nstacks
+                    t2=cutstart+(i+1)*(box.end-cutstart)/nstacks
                     for frame in reversed(box.stacks[i]):
                         merged=self.put_frame(frame.function, t1, t2, y, box.type, merged)
                         y-=self.rowheight
-                    merged=True
+                    merged=struct(canon=True, tentative=True)
             elif box.type=='run':
                 stack=None
                 try:
@@ -136,28 +144,44 @@ class FlameWindow(AppWindow):
                 if not stack:
                     stack=[struct(function='?',file='?')]
                 for frame in stack:
-                    merged=self.put_frame(frame.function, box.start, box.end, y, box.type, merged)
+                    merged=self.put_frame(frame.function, cutstart, box.end, y, box.type, merged)
                     y-=self.rowheight
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged)
 
-    def put_frame(self, text, start, end, y, typ, can_connect):
-        if self.xfromt(end)-self.xfromt(start)<2:
-            return
-        if self.ipFrames[y]:
-            if can_connect and text==self.ipFrames[y].text and self.xfromt(start)-self.xfromt(self.ipFrames[y].end)<5:
-                self.ipFrames[y].end=end
-                if self.ipFrames[y].typ!=typ:
-                    self.ipFrames[y].typ='mixed'
-                return True
-            else:
-                self.finalize_frame(self.ipFrames[y], y)
-                self.ipFrames[y]=None
-        self.ipFrames[y]=struct(text=text,start=start,end=end,typ=typ)
-        return False
+    def try_connect(self, frame, text, start, end, typ):
+        if frame and text==frame.text and self.xfromt(start)-self.xfromt(frame.end)<5:
+            frame.end=end
+            if frame.typ!=typ:
+                frame.typ='mixed'
+            return True
+        else:
+            return False
 
-    def finalize_frame(self, frame, y):
-        self.draw_rectangle(self.gcByType[frame.typ], frame.start, frame.end, y, frame.text)
+    def put_frame(self, text, start, end, y, typ, can_connect):
+        if can_connect.canon and self.try_connect(self.ipFrames[y], text, start, end, typ):
+            return struct(canon=True, tentative=False)
+        elif can_connect.tentative and self.try_connect(self.tentativeFrames[y], text, start, end, typ):
+            if self.xfromt(self.tentativeFrames[y].end)-self.xfromt(self.tentativeFrames[y].start)>2:
+                self.finalize_frame(self.ipFrames[y], y, start)
+                self.ipFrames[y]=self.tentativeFrames[y]
+                self.tentativeFrames[y]=None
+            return struct(canon=False, tentative=True)
+        else:
+            if self.ipFrames[y] and self.xfromt(start)-self.xfromt(self.ipFrames[y].end)<2 and self.xfromt(end)-self.xfromt(start)<2:
+                self.tentativeFrames[y]=struct(text=text,start=start,end=end,typ=typ)
+            else:
+                self.finalize_frame(self.ipFrames[y], y, start)
+                self.ipFrames[y]=struct(text=text,start=start,end=end,typ=typ)
+            return struct(canon=False, tentative=False)
+
+    def finalize_frame(self, frame, y, cutoff=None):
+        if frame:
+            if cutoff and cutoff<frame.end:
+                end=cutoff
+            else:
+                end=frame.end
+            self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text)
 
     def de_facto_start(self, sleep):
         try:
@@ -188,13 +212,15 @@ class FlameWindow(AppWindow):
             if 'cp' not in parent.wdata[self.id].__dict__:
                 return
             if box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
-                if box.proc in ['imap(492)', 'apache2(16380)']:
-                    print 'making %s(%f-%f) a new cp'%(box.proc,box.start,box.end)
+                if box.proc=='dovecot(957)':
+                    print 'cannot put %s %f...%f on top of %s %f(%f)...%f' % (box.proc, box.start, box.end, parent.proc, parent.start, self.de_facto_start(parent), parent.end)
                 self.maxcp+=1
                 d.cp=self.maxcp
                 d.bottom=0
                 parent=None
             else:
+                if box.proc=='dovecot(957)':
+                    print 'can put %s %f...%f on top of %s %f(%f)...%f' % (box.proc, box.start, box.end, parent.proc, parent.start, self.de_facto_start(parent), parent.end)
                 d.parent=parent
                 if 'children' not in parent.wdata[self.id].__dict__:
                     parent.wdata[self.id].children=[]
@@ -222,6 +248,10 @@ class FlameWindow(AppWindow):
                     for i in xrange(len(stack)):
                         if box.inlink.source==stack[i].proc:
                                 self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], d.cp)
+                                tocut=d.parent
+                                while tocut and tocut.proc!=box.inlink.source:
+                                    tocut.cutstart=box.start
+                                    tocut=tocut.wdata[self.id].parent
                                 return
                     if box.proc=='dovecot(4889)':
                         print "...going prev"
