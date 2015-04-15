@@ -30,6 +30,9 @@ class FlameWindow(AppWindow):
         self.maxcp=0
         for r in data.runs[target]:
             self.rtag(r,None)
+        for box in self.roots[-1]:
+            self.setCPs(box)
+        del self.roots[-1]
         for cp in self.roots:
             for box in self.roots[cp]:
                 self.setheights(box,0)
@@ -40,6 +43,8 @@ class FlameWindow(AppWindow):
                 if self.merge[j]!=j:
                     continue
                 if self.cpstart[i]>self.cpend[j] or self.cpend[i]<self.cpstart[j]:
+                    self.roots[j]+=self.roots[i]
+                    self.roots[i]=[]
                     self.merge[i]=j
                     if self.maxdepth[i]>self.maxdepth[j]:
                         self.maxdepth[j]=self.maxdepth[i]
@@ -97,12 +102,12 @@ class FlameWindow(AppWindow):
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
 
-    def mergeAndDrawBoxes(self, boxes, can_merge_proc):
+    def mergeAndDrawBoxes(self, boxes, can_merge_proc, depth=0):
         if len(boxes)==0:
             return
-        for box in sorted(boxes,key=lambda(box):box.start):
-            if self.xfromt(box.start)>2*self.pmwidth or self.xfromt(box.end)<-self.pmwidth:
-                continue
+        for box in sorted(boxes,key=lambda(b):b.start):
+#            if self.xfromt(box.start)>2*self.pmwidth or self.xfromt(box.end)<-self.pmwidth:
+#                continue
             if 'cutstart' in box.wdata[self.id].__dict__:
                 cutstart=box.wdata[self.id].cutstart
             else:
@@ -152,7 +157,7 @@ class FlameWindow(AppWindow):
                     merged=self.put_frame(frame.function, cutstart, box.end, y, box.type, merged)
                     y-=self.rowheight
             if 'children' in box.wdata[self.id].__dict__:
-                self.mergeAndDrawBoxes(box.wdata[self.id].children, merged)
+                self.mergeAndDrawBoxes(box.wdata[self.id].children, merged, depth+1)
 
     def try_connect(self, frame, text, start, end, typ):
         if frame and text==frame.text and self.xfromt(start)-self.xfromt(frame.end)<5:
@@ -209,27 +214,24 @@ class FlameWindow(AppWindow):
         except AttributeError as e:
             return sleep.start            
 
-    def rtag(self, box, parent, stack=[], cp=0):
+    def rtag(self, box, parent, stack=[], cpSameAs=None):
         d=box.wdata[self.id]
-        if 'cp' in d.__dict__:
+        if 'cpSameAs' in d.__dict__:
             return
         if not parent:
-            d.cp=cp
+            d.cpSameAs=cpSameAs
             d.parent=None
-            self.roots[d.cp].append(box)
+            self.roots[-1].append(box)
         elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
-            self.maxcp+=1
-            d.cp=self.maxcp
+            d.cpSameAs=None
             d.parent=None
-            self.roots[d.cp].append(box)
+            self.roots[-1].append(box)
         else:
             d.parent=parent
             if 'children' not in parent.wdata[self.id].__dict__:
                 parent.wdata[self.id].children=[]
             parent.wdata[self.id].children.append(box)
-            d.cp=cp
-        self.cpstart[d.cp] = min(self.cpstart[d.cp], box.start)
-        self.cpend[d.cp] = max(self.cpend[d.cp], box.end)
+            d.cpSameAs=parent
         if 'cutstart' in d.__dict__: 
             if d.parent and d.cutDownTo!=d.parent.proc:
                 d.parent.wdata[self.id].cutstart=d.cutstart
@@ -237,11 +239,11 @@ class FlameWindow(AppWindow):
             return
         if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
             if 'horizontal' in box.inlink.__dict__:
-                self.rtag(box.inlink.sourcerun, parent, stack, d.cp)
+                self.rtag(box.inlink.sourcerun, parent, stack, box)
             else:
                 for i in xrange(len(stack)):
                     if box.inlink.source==stack[i].proc:
-                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], d.cp)
+                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], stack[i].par)
                             if i!=len(stack)-1:
                                 d.parent.wdata[self.id].cutstart=box.start
                                 d.parent.wdata[self.id].cutDownTo=stack[i].proc
@@ -249,11 +251,34 @@ class FlameWindow(AppWindow):
                 if 'prev' in box.__dict__:
                     newstack=copy(stack)
                     newstack.append(struct(proc=box.proc, par=d.parent))
-                    self.rtag(box.inlink.sourcerun, box.prev, newstack, d.cp)
+                    self.rtag(box.inlink.sourcerun, box.prev, newstack, box.prev)
                 else:
-                    self.rtag(box.inlink.sourcerun, d.parent, stack, d.cp)
+                    self.rtag(box.inlink.sourcerun, d.parent, stack, box)
         if 'prev' in box.__dict__:
-            self.rtag(box.prev, d.parent, stack, d.cp)
+            self.rtag(box.prev, d.parent, stack, box)
+
+    def setCPs(self, box):
+        if 'cp' in box.wdata[self.id].__dict__:
+            return
+        if box.wdata[self.id].cpSameAs:
+            self.setCPs(box.wdata[self.id].cpSameAs)
+            cp = box.wdata[self.id].cpSameAs.wdata[self.id].cp
+        else:
+            if box.proc==self.target:
+                cp = 0
+            else:
+                self.maxcp+=1
+                cp = self.maxcp
+        box.wdata[self.id].cp = cp
+        if not box.wdata[self.id].parent:
+            self.roots[cp].append(box)
+        if box.start<self.cpstart[cp]:
+            self.cpstart[cp]=box.start
+        if box.end>self.cpend[cp]:
+            self.cpend[cp]=box.end
+        if 'children' in box.wdata[self.id].__dict__:
+            for child in box.wdata[self.id].children:
+                self.setCPs(child)
 
     def setheights(self, box, bottom):
         box.wdata[self.id].bottom=bottom
@@ -263,7 +288,11 @@ class FlameWindow(AppWindow):
             self.maxdepth[box.wdata[self.id].cp] = top
         if 'children' in box.wdata[self.id].__dict__:
             for child in box.wdata[self.id].children:
-                self.setheights(child, box.wdata[self.id].top)
+                if child.wdata[self.id].cp == box.wdata[self.id].cp:
+                    self.setheights(child, box.wdata[self.id].top)
+                else:
+                    self.setheights(child, 0)
+
 
     def runheight(self, run):
         if run.type=='sleep':
@@ -276,7 +305,8 @@ class FlameWindow(AppWindow):
                 return max([len(i) for i in run.stacks])+1
             else:
                 return 1
-    
+
+
     def drawStack(self, base, stack, color, x1, x2, startY):
         y=startY
         self.draw_rectangle(self.grey_gc, x1, x2, y, base)

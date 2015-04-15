@@ -212,6 +212,10 @@ class AppWindow:
         x2=self.xfromt(t2)
         if x2<0 or x1>self.pmwidth:
             return        
+        if x1<0:
+            x1=0
+        if x2>self.pmwidth:
+            x2=self.pmwidth
         self.pixmap.draw_line(gc, x1, y1, x2, y2)
 
 
