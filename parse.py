@@ -159,8 +159,9 @@ def parse(fn):
             for frame in ev.stack:
                 if frame.function in ['retint_careful', 'jbd2_journal_commit_transaction', 'wait_for_completion']:
                     is_interrupt=True
-                    break
-            if is_interrupt:
+                if frame.function == 'submit_bio_wait':
+                    is_bio=True
+            if is_interrupt and not is_bio:
                 links.append(struct(source=oldp,target=oldp,start=ev.time,outtime=ev.time,sourcerun=runs[oldp][-1],horizontal=True))
                 inlinks[oldp].append(links[-1])
                 runs[oldp][-1].horizoutlink=links[-1]

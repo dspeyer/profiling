@@ -30,6 +30,9 @@ class FlameWindow(AppWindow):
         self.maxcp=0
         for r in data.runs[target]:
             self.rtag(r,None)
+        for cp in self.roots:
+            for box in self.roots[cp]:
+                self.setheights(box,0)
         self.merge={}
         for i in xrange(self.maxcp+1):
             self.merge[i]=i
@@ -98,8 +101,8 @@ class FlameWindow(AppWindow):
         if len(boxes)==0:
             return
         for box in sorted(boxes,key=lambda(box):box.start):
-            if 'cutstart' in box.__dict__:
-                cutstart=box.cutstart
+            if 'cutstart' in box.wdata[self.id].__dict__:
+                cutstart=box.wdata[self.id].cutstart
             else:
                 cutstart=box.start
             y=self.getY(box)
@@ -108,7 +111,7 @@ class FlameWindow(AppWindow):
             y-=self.rowheight
             if 'stack' in box.__dict__:
                 for frame in reversed(box.stack):
-                    if 'cutstart' in box.__dict__:
+                    if 'cutstart' in box.wdata[self.id].__dict__:
                         text='... '+frame.function
                     else:
                         text=frame.function
@@ -208,66 +211,57 @@ class FlameWindow(AppWindow):
         d=box.wdata[self.id]
         if 'cp' in d.__dict__:
             return
-        if parent:
-            if 'cp' not in parent.wdata[self.id].__dict__:
-                return
-            if box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
-                if box.proc=='dovecot(957)':
-                    print 'cannot put %s %f...%f on top of %s %f(%f)...%f' % (box.proc, box.start, box.end, parent.proc, parent.start, self.de_facto_start(parent), parent.end)
-                self.maxcp+=1
-                d.cp=self.maxcp
-                d.bottom=0
-                parent=None
-            else:
-                if box.proc=='dovecot(957)':
-                    print 'can put %s %f...%f on top of %s %f(%f)...%f' % (box.proc, box.start, box.end, parent.proc, parent.start, self.de_facto_start(parent), parent.end)
-                d.parent=parent
-                if 'children' not in parent.wdata[self.id].__dict__:
-                    parent.wdata[self.id].children=[]
-                parent.wdata[self.id].children.append(box)
-                d.cp=parent.wdata[self.id].cp
-                d.bottom=parent.wdata[self.id].top
-        else:
+        if not parent:
             d.cp=cp
-            d.bottom=0
+            d.parent=None
+            self.roots[d.cp].append(box)
+        elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
+            self.maxcp+=1
+            d.cp=self.maxcp
+            d.parent=None
+            self.roots[d.cp].append(box)
+        else:
+            d.parent=parent
+            if 'children' not in parent.wdata[self.id].__dict__:
+                parent.wdata[self.id].children=[]
+            parent.wdata[self.id].children.append(box)
+            d.cp=cp
         self.cpstart[d.cp] = min(self.cpstart[d.cp], box.start)
         self.cpend[d.cp] = max(self.cpend[d.cp], box.end)
-        if d.bottom==0:
-            self.roots[d.cp].append(box)
-        d.top = d.bottom+self.runheight(box)
-        if d.top>self.maxdepth[d.cp]:
-            self.maxdepth[d.cp]=d.top
-        if box.proc=='dovecot(4889)':
-            print 'in dovecot %f-%f'%(box.start,box.end)
-        if 'prev' in box.__dict__:
-            if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
-                if 'horizontal' in box.inlink.__dict__:
-                    self.rtag(box.prev, parent, stack, d.cp)
-                    self.rtag(box.inlink.sourcerun, parent, stack, d.cp)
-                else:
-                    for i in xrange(len(stack)):
-                        if box.inlink.source==stack[i].proc:
-                                self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], d.cp)
-                                tocut=d.parent
-                                while tocut and tocut.proc!=box.inlink.source:
-                                    tocut.cutstart=box.start
-                                    tocut=tocut.wdata[self.id].parent
-                                return
-                    if box.proc=='dovecot(4889)':
-                        print "...going prev"
-                    self.rtag(box.prev, parent, stack, d.cp)
-                    newstack=copy(stack)
-                    newstack.append(struct(proc=box.proc, par=parent))
-                    self.rtag(box.inlink.sourcerun, box.prev, newstack, d.cp)
+        if 'cutstart' in d.__dict__: 
+            if d.parent and d.cutDownTo!=d.parent.proc:
+                d.parent.wdata[self.id].cutstart=d.cutstart
+                d.parent.wdata[self.id].cutDownTo=d.cutDownTo
+            return
+        if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
+            if 'horizontal' in box.inlink.__dict__:
+                self.rtag(box.inlink.sourcerun, parent, stack, d.cp)
             else:
-                self.rtag(box.prev, parent, stack, d.cp)
-        elif 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
-            if box.proc=='dovecot(4889)':
-                print "...following link"
-            self.rtag(box.inlink.sourcerun, parent, stack, d.cp)
-        else:
-            if box.proc=='dovecot(4889)':
-                print "...dead end %s %s"%('inlink' in box.__dict__, 'sourcerun' in box.inlink.__dict__)
+                for i in xrange(len(stack)):
+                    if box.inlink.source==stack[i].proc:
+                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], d.cp)
+                            if i!=len(stack)-1:
+                                d.parent.wdata[self.id].cutstart=box.start
+                                d.parent.wdata[self.id].cutDownTo=stack[i].proc
+                            return 
+                if 'prev' in box.__dict__:
+                    newstack=copy(stack)
+                    newstack.append(struct(proc=box.proc, par=d.parent))
+                    self.rtag(box.inlink.sourcerun, box.prev, newstack, d.cp)
+                else:
+                    self.rtag(box.inlink.sourcerun, d.parent, stack, d.cp)
+        if 'prev' in box.__dict__:
+            self.rtag(box.prev, d.parent, stack, d.cp)
+
+    def setheights(self, box, bottom):
+        box.wdata[self.id].bottom=bottom
+        top=bottom+self.runheight(box)
+        box.wdata[self.id].top=top
+        if top > self.maxdepth[box.wdata[self.id].cp]:
+            self.maxdepth[box.wdata[self.id].cp] = top
+        if 'children' in box.wdata[self.id].__dict__:
+            for child in box.wdata[self.id].children:
+                self.setheights(child, box.wdata[self.id].top)
 
     def runheight(self, run):
         if run.type=='sleep':
