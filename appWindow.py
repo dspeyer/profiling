@@ -189,6 +189,10 @@ class AppWindow:
             x2-=self.rectmargin
         if x2<0 or x1>self.pmwidth:
             return
+        if x1<0:
+            x1=0
+        if x2>self.pmwidth:
+            x2=self.pmwidth
         y1 = h
         self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight-1)
         if text:

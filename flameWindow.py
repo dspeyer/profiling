@@ -101,6 +101,8 @@ class FlameWindow(AppWindow):
         if len(boxes)==0:
             return
         for box in sorted(boxes,key=lambda(box):box.start):
+            if self.xfromt(box.start)>2*self.pmwidth or self.xfromt(box.end)<-self.pmwidth:
+                continue
             if 'cutstart' in box.wdata[self.id].__dict__:
                 cutstart=box.wdata[self.id].cutstart
             else:
