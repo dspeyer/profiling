@@ -30,6 +30,8 @@ class AppWindow:
         self.raw_times = False;
         rt=gtk.ToggleButton('Raw Times')
         rt.connect('clicked', self.toggle_raw_times)
+        save=gtk.Button('Save as Image')
+        save.connect('clicked', self.save_part1)
 
         vscroll = gtk.ScrolledWindow()
         vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
@@ -58,6 +60,7 @@ class AppWindow:
         self.toolbar.add(zi)
         self.toolbar.add(zo)
         self.toolbar.add(rt)
+        self.toolbar.add(save)
         vscroll.add_with_viewport(hbox)
         hbox.pack_start(self.legend, expand=False, fill=False)
         hbox.pack_start(hscroll, expand=True, fill=True)
@@ -218,5 +221,35 @@ class AppWindow:
             x2=self.pmwidth
         self.pixmap.draw_line(gc, x1, y1, x2, y2)
 
+
+    def save_part1(self, widget):
+        window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        vb=gtk.VBox()
+        window.add(vb)
+        vb.add(gtk.Label('Filename:'))
+        entry=gtk.Entry()
+        vb.add(entry)
+        button=gtk.Button('Save')
+        button.connect('clicked', self.save_part2, entry)
+        vb.add(button)
+        window.show_all()
+
+    def save_part2(self, widget, entry):
+        fn = entry.get_text()
+        entry.get_parent().get_parent().destroy()
+        pb = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, self.width, self.height+self.rowheight)
+        oldoffset=self.offset
+        self.offset=0
+        cmap=gtk.gdk.colormap_get_system()
+        while self.offset<self.width:
+            self.redraw()
+            pb.get_from_drawable(self.pixmap, cmap, 0, 0, self.offset, 0, min(self.pmwidth,self.width-self.offset), self.height)
+            self.redraw_time()
+            pb.get_from_drawable(self.timingpixmap, cmap, 0, 0, self.offset, self.height, min(self.pmwidth,self.width-self.offset), self.rowheight)
+            self.offset += self.pmwidth
+        pb.save(fn+'.png', 'png')
+        self.offset=oldoffset
+        self.redraw()
+        self.redraw_time()
 
 AppWindow.id=0
