@@ -27,6 +27,7 @@ class FlameWindow(AppWindow):
         self.cpstart=defaultdict(lambda:float('inf'))
         self.cpend=defaultdict(lambda:float('-inf'))
         self.roots=defaultdict(lambda:[])
+        self.pseudolinks=[]
         self.maxcp=0
         for r in data.runs[target]:
             self.rtag(r,None)
@@ -93,6 +94,10 @@ class FlameWindow(AppWindow):
                  'bottom' in l.sourcerun.wdata[self.id].__dict__ and 
                  'bottom' in l.targetrun.wdata[self.id].__dict__):# and
 #                 l.sourcerun.wdata[self.id].cp!=l.targetrun.wdata[self.id].cp):
+                y1=self.getY(l.sourcerun)+int(self.rowheight/2)
+                y2=self.getY(l.targetrun)+int(self.rowheight/2)
+                self.draw_line(self.red_gc, l.start, y1, l.end, y2)
+        for l in self.pseudolinks:
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
@@ -286,6 +291,8 @@ class FlameWindow(AppWindow):
         box.wdata[self.id].top=top
         if top > self.maxdepth[box.wdata[self.id].cp]:
             self.maxdepth[box.wdata[self.id].cp] = top
+        if 'prev' in box.__dict__ and 'cp' in box.prev.wdata[self.id].__dict__ and box.wdata[self.id].cp!=box.prev.wdata[self.id].cp:
+            self.pseudolinks.append(struct(sourcerun=box.prev, targetrun=box, start=box.prev.end, end=box.start))
         if 'children' in box.wdata[self.id].__dict__:
             for child in box.wdata[self.id].children:
                 if child.wdata[self.id].cp == box.wdata[self.id].cp:
