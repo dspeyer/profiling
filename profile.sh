@@ -2,7 +2,7 @@
 
 FN="perf`date|tr -c 0-9 _`.scr"
 
-sudo perf record -a --call-graph dwarf -F 999 -e 'sched:sched_wakeup,sched:sched_switch,sched:sched_process_exec,cycles,block:block_bio_queue,sched:sched_process_fork' -m 16M "$@"
+sudo perf record -a --call-graph dwarf -F 9999 -e 'sched:sched_wakeup,sched:sched_switch,sched:sched_process_exec,cycles,sched:sched_process_fork,block:block_rq_issue,block:block_rq_complete,block:block_rq_insert' -m 16M "$@"
 
 sudo perf script -f trace:tid,comm,time,event,trace,sym,ip,dso > $FN
 

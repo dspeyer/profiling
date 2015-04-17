@@ -68,7 +68,8 @@ class FlameWindow(AppWindow):
             'sleep': self.blue_gc,
             'mixed': self.purple_gc,
             'proc': self.grey_gc,
-            'bio': self.green_gc
+            'bio': self.green_gc,
+            'queue': self.cyan_gc
         }
 
         cons = gtk.Button('Consolidated View')
@@ -118,7 +119,13 @@ class FlameWindow(AppWindow):
             else:
                 cutstart=box.start
             y=self.getY(box)
-            merged=self.put_frame(box.proc, cutstart, box.end, y, 'proc' if box.type!='bio' else 'bio', can_merge_proc)
+            if box.type in ['run', 'sleep']:
+                typ='proc'
+                text=box.proc
+            else:
+                typ=box.type
+                text=box.repframe+'('+box.type+')'
+            merged=self.put_frame(text, cutstart, box.end, y, typ, can_merge_proc)
             can_merge_proc=struct(canon=True, tentative=True)
             y-=self.rowheight
             if 'stack' in box.__dict__:
@@ -196,7 +203,8 @@ class FlameWindow(AppWindow):
                 end=cutoff
             else:
                 end=frame.end
-            self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text)
+            if end > frame.start:
+                self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text)
 
     def de_facto_start(self, sleep):
         try:
@@ -249,7 +257,7 @@ class FlameWindow(AppWindow):
                 for i in xrange(len(stack)):
                     if box.inlink.source==stack[i].proc:
                             self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], stack[i].par)
-                            if i!=len(stack)-1:
+                            if i!=len(stack)-1 and d.parent:
                                 d.parent.wdata[self.id].cutstart=box.start
                                 d.parent.wdata[self.id].cutDownTo=stack[i].proc
                             return 

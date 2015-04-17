@@ -139,10 +139,13 @@ class MainWindow(AppWindow):
                 text=''
             elif b.type=='sleep':
                 gc=self.blue_gc
-                text=b.repframe
+            elif b.type=='queue':
+                gc=self.cyan_gc
             else:
                 gc=self.green_gc
-                text='blockio to '+b.proc
+                text='blocking io for '+b.proc
+            if 'repframe' in b.__dict__:
+                text=b.repframe
             self.draw_rectangle(gc, b.start, b.end, h, text)
         for l in self.links:
             if l.source not in self.heights or l.target not in self.heights:

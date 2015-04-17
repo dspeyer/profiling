@@ -82,14 +82,18 @@ def parse(fn):
     switchedin={}
     switchedout={}
     switchedoutstack={}
-    bio_for={}
     inlinks=defaultdict(lambda:[])
     outlinks=defaultdict(lambda:[])
     runs=defaultdict(lambda:[])
     sleeps=defaultdict(lambda:[])
     runningstacks={}
     links=[]
+
+    activedevs={}
+    activebios={}
     bios=[]
+    lastfinishforproc={}
+    lastfinishondev={}
 
     starttime=evs[0].time
     endtime=evs[-1].time
@@ -179,12 +183,10 @@ def parse(fn):
                 if frame.function in ['bio_endio']:
                     is_bio=True
             if is_bio:
-                if target in bio_for:
-                    bio_for[target].end=ev.time
-                    links.append(struct(source=bio_for[target].proc, sourcerun=bio_for[target], target=target, start=ev.time, outtime=ev.time))
+                if target in lastfinishforproc:
+                    links.append(struct(source=lastfinishforproc[target].proc, sourcerun=lastfinishforproc[target], target=target, start=ev.time, outtime=ev.time))
                     inlinks[target].append(links[-1])
-                    bios.append(bio_for[target])
-                    del bio_for[target]
+                    del lastfinishforproc[target]
             if is_interrupt:
                 continue
             links.append(struct(source=source,target=target,start=ev.time,stack=ev.stack))
@@ -194,11 +196,7 @@ def parse(fn):
             else:
                 outlinks[source].append(links[-1])
         elif ev.event=='block:block_bio_queue':
-            proc='%s(%s)'%(ev.comm,ev.pid)
-            dev='dev=%s'%ev.args.raw[0]
-            bio_for[proc]=struct(start=ev.time, proc=dev, type='bio')
-            links.append(struct(source=proc,target=dev,targetrun=bio_for[proc],start=ev.time))
-            outlinks[source].append(links[-1])
+            pass # keep this here so we don't spew error messages on old traces
         elif ev.event=='sched:sched_process_exec':
             source='%s(%d)'%(ev.oldcomm,ev.pid)
             target='%s(%d)'%(ev.comm,ev.pid)
@@ -222,6 +220,60 @@ def parse(fn):
                 runningstacks[proc].append(ev.stack)
             else:
                 print 'WARNING: sample for %s at %f which is not running according to sched events'%(proc,ev.time)
+        elif ev.event=='block:block_rq_insert':
+            callerproc='%s(%d)'%(ev.comm,ev.pid)
+            dev=ev.args.raw[0]
+            typ=ev.args.raw[1]
+            offset=ev.args.raw[4]
+            size=ev.args.raw[6]
+            if dev not in activedevs:
+                proc=dev
+            else:
+                i=1
+                while '%s/%d'%(dev,i) in activedevs:
+                    i+=1
+                proc='%s/%d'%(dev,i)
+            activedevs[proc]=1
+            activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc)
+            links.append(struct(start=ev.time, end=ev.time, source=callerproc, target=proc, targetrun=activebios[dev+'/'+offset]))
+            outlinks[callerproc].append(links[-1])
+        elif ev.event=='block:block_rq_issue':
+            dev=ev.args.raw[0]
+            offset=ev.args.raw[4]
+            if dev+'/'+offset not in activebios:
+                print 'WARNING: unstarted io issue at %f'%ev.time
+                continue
+            queue = activebios[dev+'/'+offset]
+            queue.end=ev.time
+            bios.append(queue)
+            run=copy(queue)
+            run.start=ev.time
+            run.type='bio'
+            del run.end
+            activebios[dev+'/'+offset]=run
+            run.prev=queue
+            if dev not in lastfinishondev or queue.start>lastfinishondev[dev].end:
+                links.append(struct(start=ev.time, end=ev.time, source=queue.proc, target=run.proc, horizontal=True, sourcerun=queue, targetrun=run))
+                queue.outlink=links[-1]
+                run.inlink=links[-1]
+            else:
+                lf=lastfinishondev[dev]
+                links.append(struct(start=lf.end, end=ev.time, source=lf.proc, target=run.proc, sourcerun=lf, targetrun=run))
+                lf.outlink=links[-1]
+                run.inlink=links[-1]
+        elif ev.event=='block:block_rq_complete':            
+            dev=ev.args.raw[0]
+            offset=ev.args.raw[3]
+            if dev+'/'+offset not in activebios:
+                print 'WARNING: unstarted io completion at %f'%ev.time
+                continue
+            run = activebios[dev+'/'+offset]
+            run.end = ev.time
+            lastfinishondev[dev]=run
+            bios.append(run)
+            del activebios[dev+'/'+offset]
+            del activedevs[run.proc]
+            lastfinishforproc[run.behalfof]=run
         else:
             print 'ERROR: unhandled event "%s"'%ev.event
 

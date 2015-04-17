@@ -47,6 +47,7 @@ class ConsolidatedWindow(AppWindow):
             'mixed': self.purple_gc,
             'proc': self.grey_gc,
             'bio': self.green_gc,
+            'queue': self.cyan_gc,
             '': self.gc,
             'empty': self.white_gc
         }
