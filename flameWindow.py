@@ -115,7 +115,9 @@ class FlameWindow(AppWindow):
                 text=box.proc
             else:
                 typ=box.type
-                text=box.repframe+'('+box.type+')'
+                text=box.repframe+' on '+box.dev
+                if box.type=='queue':
+                    text+=' '
             merged=self.put_frame(text, cutstart, box.end, y, typ, can_merge_proc)
             can_merge_proc=struct(canon=True, tentative=True)
             y-=self.rowheight
@@ -227,6 +229,8 @@ class FlameWindow(AppWindow):
             d.parent=None
             self.roots[-1].append(box)
         elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
+            print 'marking %s %f-%f as async of %s %f-%f'%(box.proc,box.start,box.end,parent.proc,parent.start,parent.end)
+            parent.wdata[self.id].async=box
             d.cpSameAs=None
             d.parent=None
             self.roots[-1].append(box)
@@ -243,7 +247,7 @@ class FlameWindow(AppWindow):
             return
         if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
             if 'horizontal' in box.inlink.__dict__:
-                self.rtag(box.inlink.sourcerun, parent, stack, box)
+                self.rtag(box.inlink.sourcerun, d.parent, stack, box)
             else:
                 for i in xrange(len(stack)):
                     if box.inlink.source==stack[i].proc:

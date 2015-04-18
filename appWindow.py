@@ -92,6 +92,9 @@ class AppWindow:
         self.green_gc =  self.content.window.new_gc()
         self.green_gc.copy(self.gc)
         self.green_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=32768, green=65535, blue=32768))
+        self.yellow_gc =  self.content.window.new_gc()
+        self.yellow_gc.copy(self.gc)
+        self.yellow_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=65535, green=65535, blue=0))
 
         self.gcByType={
             'run': self.pink_gc,
@@ -101,7 +104,8 @@ class AppWindow:
             'bio': self.green_gc,
             'queue': self.cyan_gc,
             '': self.gc,
-            'empty': self.white_gc
+            'empty': self.white_gc,
+            'async': self.yellow_gc
         }
 
         self.timing.realize()

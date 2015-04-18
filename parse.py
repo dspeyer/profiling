@@ -255,7 +255,7 @@ def parse(fn):
                     i+=1
                 proc='%s/%d'%(dev,i)
             activedevs[proc]=1
-            activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc, iotype=typ)
+            activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc, iotype=typ,dev=dev)
             links.append(struct(start=ev.time, end=ev.time, source=callerproc, target=proc, targetrun=activebios[dev+'/'+offset]))
             outlinks[callerproc].append(links[-1])
         elif ev.event=='block:block_rq_issue':

@@ -9,7 +9,7 @@ from appWindow import AppWindow
 from parse import struct
 
 def treeNode():
-    return struct(time=0, type='', children=defaultdict(treeNode))
+    return struct(time=0, type='', children=defaultdict(treeNode), async=[])
 
 def unitify(t):
     if t>1:
@@ -32,6 +32,7 @@ class ConsolidatedWindow(AppWindow):
         self.infn=0
         self.inrunns=0
         self.inbio=0
+        self.inas=0
         self.root=treeNode()
         self.root.type='root'
         for cp in cps:
@@ -55,7 +56,7 @@ class ConsolidatedWindow(AppWindow):
         win = gtk.Window(gtk.WINDOW_TOPLEVEL)
         win.set_title('Stats')
         win.set_keep_above(True)
-        tab = gtk.Table(2,7)
+        tab = gtk.Table(2,8)
         win.add(tab)
         tab.attach(gtk.Label('Wall time:'),0,1,0,1)
         tab.attach(gtk.Label(' %.1f%s' % unitify(self.data.endtime-self.data.starttime)), 1,2,0,1)
@@ -67,10 +68,12 @@ class ConsolidatedWindow(AppWindow):
         tab.attach(gtk.Label('%.1f%s' % unitify(self.inrunns)), 1,2,3,4)
         tab.attach(gtk.Label('In blocking I/O:'),0,1,4,5)
         tab.attach(gtk.Label('%.1f%s'% unitify(self.inbio)), 1,2,4,5)
-        tab.attach(gtk.Label('Total Accounted:'),0,1,5,6)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.infn + self.inrunns + self.inbio)), 1,2,5,6)
-        tab.attach(gtk.Label('Unaccounted:'),0,1,6,7)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.root.time - self.infn - self.inrunns - self.inbio)), 1,2,6,7)
+        tab.attach(gtk.Label('Waiting on other path:'),0,1,5,6)
+        tab.attach(gtk.Label('%.1f%s'% unitify(self.inas)), 1,2,5,6)
+        tab.attach(gtk.Label('Total Accounted:'),0,1,6,7)
+        tab.attach(gtk.Label('%.1f%s' % unitify(self.infn + self.inrunns + self.inbio + self.inas)), 1,2,6,7)
+        tab.attach(gtk.Label('Unaccounted:'),0,1,7,8)
+        tab.attach(gtk.Label('%.1f%s' % unitify(self.root.time - self.infn - self.inrunns - self.inbio - self.inas)), 1,2,7,8)
         win.show_all()
 
     def put_stack(self, node, stack, dur, typ):
@@ -83,15 +86,18 @@ class ConsolidatedWindow(AppWindow):
                 node.type='mixed'
         return node
 
+    def get_text(self, box):
+        if box.type == 'bio':
+            return box.iotype + ' of '+box.dev
+        elif box.type == 'queue':
+            return box.iotype + ' of '+box.dev + ' '
+        else:
+            return box.proc
+
     def accumulate(self, node, box, h):
         h+=1
-        if box.type == 'bio':
-            text = box.iotype + ' of '+box.proc
-        elif box.type == 'queue':
-            text = '[queue] '+ box.iotype + ' of '+box.proc
-        else:
-            text=box.proc
-        node = node.children[text]
+        node = node.children[self.get_text(box)]
+        topframe = node
         if box.type in ['bio', 'queue']:
             node.type=box.type
             self.inbio += box.end-box.start
@@ -118,18 +124,36 @@ class ConsolidatedWindow(AppWindow):
             h+=1
         if h>self.lheight:
             self.lheight=h
+        time=box.end-box.start
         if 'children' in box.wdata[self.flameId].__dict__:
             for child in box.wdata[self.flameId].children:
                 self.accumulate(topframe, child, h+1)
+                time -= child.end-child.start
+        if 'async' in box.wdata[self.flameId].__dict__:
+            print 'passing async for %s %f-%f'%(box.proc, box.start, box.end)
+            topframe.async.append(struct(aschild=box.wdata[self.flameId].async,maxtime=time))
 
     def addEmpty(self, node):
-        if node.type=='empty':
+        if node.type in ['empty', 'async']:
             return
         children = node.children.keys()
         node.children[''].time = node.time
         node.children[''].type = 'empty'
         for child in children:
             node.children[''].time -= node.children[child].time
+        for async in node.async:
+            print 'making async'
+            astime = min(async.aschild.end - async.aschild.start, async.maxtime)
+            if node.children[''].time > astime:
+                node.children[''].time -= astime
+            else:
+                astime = node.children[''].time
+                node.children[''].time = 0
+            asyncname = 'latter part of '+self.get_text(async.aschild)
+            if astime>0:
+                node.children[asyncname].time+=astime
+                node.children[asyncname].type='async'
+                self.inas+=astime
         for child in children:
             self.addEmpty(node.children[child])
 
