@@ -84,8 +84,10 @@ class FlameWindow(AppWindow):
         for l in self.links:
             if  ('sourcerun' in l.__dict__ and 'targetrun' in l.__dict__ and
                  'bottom' in l.sourcerun.wdata[self.id].__dict__ and 
-                 'bottom' in l.targetrun.wdata[self.id].__dict__):# and
-#                 l.sourcerun.wdata[self.id].cp!=l.targetrun.wdata[self.id].cp):
+                 'bottom' in l.targetrun.wdata[self.id].__dict__ and
+                 (l.sourcerun.wdata[self.id].cp!=l.targetrun.wdata[self.id].cp or
+                  self.xfromt(l.end)!=self.xfromt(l.start) or
+                  self.xfromt(l.end)!=self.xfromt(l.outtime))):
                 y1=self.getY(l.sourcerun)+int(self.rowheight/2)
                 y2=self.getY(l.targetrun)+int(self.rowheight/2)
                 self.draw_line(self.red_gc, l.start, y1, l.end, y2)
@@ -167,7 +169,7 @@ class FlameWindow(AppWindow):
     def try_connect(self, frame, text, start, end, typ):
         if frame and text==frame.text and self.xfromt(start)-self.xfromt(frame.end)<5:
             frame.end=end
-            if frame.typ!=typ:
+            if frame.typ!=typ and self.xfromt(end)-self.xfromt(start)>2:
                 frame.typ='mixed'
             return True
         else:

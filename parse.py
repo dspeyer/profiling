@@ -306,6 +306,10 @@ def parse(fn):
         if switchedin[p]!=-1:
             runs[p].append(struct(start=switchedin[p], end=endtime))
 
+    for cp in activebios:
+        activebios[cp].end=endtime
+        bios.append(activebios[cp])
+
     # Create repframes for sleeps
     for p in sleeps:
         for s in sleeps[p]:
@@ -337,6 +341,7 @@ def parse(fn):
         else:
             l.istransfer=False
             print 'no outtime at %f (%s->%s)'%(l.start,l.source,l.target)
+            l.outtime=l.start
 
     boxes=[]
     for p in runs:
