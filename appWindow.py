@@ -255,19 +255,29 @@ class AppWindow:
     def save_part2(self, widget, entry):
         fn = entry.get_text()
         entry.get_parent().get_parent().destroy()
-        pb = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, self.width, self.height+self.rowheight)
-        oldoffset=self.offset
-        self.offset=0
-        cmap=gtk.gdk.colormap_get_system()
-        while self.offset<self.width:
+        try:
+            pb = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, False, 8, self.width, self.height+self.rowheight)
+            oldoffset=self.offset
+            self.offset=0
+            cmap=gtk.gdk.colormap_get_system()
+            while self.offset<self.width:
+                self.redraw()
+                pb.get_from_drawable(self.pixmap, cmap, 0, 0, self.offset, 0, min(self.pmwidth,self.width-self.offset), self.height)
+                self.redraw_time()
+                pb.get_from_drawable(self.timingpixmap, cmap, 0, 0, self.offset, self.height, min(self.pmwidth,self.width-self.offset), self.rowheight)
+                self.offset += self.pmwidth
+            pb.save(fn+'.png', 'png')
+            self.offset=oldoffset
             self.redraw()
-            pb.get_from_drawable(self.pixmap, cmap, 0, 0, self.offset, 0, min(self.pmwidth,self.width-self.offset), self.height)
             self.redraw_time()
-            pb.get_from_drawable(self.timingpixmap, cmap, 0, 0, self.offset, self.height, min(self.pmwidth,self.width-self.offset), self.rowheight)
-            self.offset += self.pmwidth
-        pb.save(fn+'.png', 'png')
-        self.offset=oldoffset
-        self.redraw()
-        self.redraw_time()
+        except RuntimeError:
+            self.show_error("Can't save image at that zoom level")
+
+    def show_error(self, message):
+        md = gtk.MessageDialog(None,
+            gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR,
+            gtk.BUTTONS_CLOSE, message)
+        md.run()
+        md.destroy()
 
 AppWindow.id=0
