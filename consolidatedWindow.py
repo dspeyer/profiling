@@ -41,16 +41,6 @@ class ConsolidatedWindow(AppWindow):
         self.addEmpty(self.root)
         self.height=self.lheight * self.rowheight
         self.endtime = self.root.time
-        self.gcByType={
-            'run': self.pink_gc,
-            'sleep': self.blue_gc,
-            'mixed': self.purple_gc,
-            'proc': self.grey_gc,
-            'bio': self.green_gc,
-            'queue': self.cyan_gc,
-            '': self.gc,
-            'empty': self.white_gc
-        }
 
         ss=gtk.Button('Show Stats')
         ss.connect('clicked', self.stats)
@@ -95,9 +85,15 @@ class ConsolidatedWindow(AppWindow):
 
     def accumulate(self, node, box, h):
         h+=1
-        node = node.children[box.proc]
-        if box.type=='bio':
-            node.type='bio'
+        if box.type == 'bio':
+            text = box.iotype + ' of '+box.proc
+        elif box.type == 'queue':
+            text = '[queue] '+ box.iotype + ' of '+box.proc
+        else:
+            text=box.proc
+        node = node.children[text]
+        if box.type in ['bio', 'queue']:
+            node.type=box.type
             self.inbio += box.end-box.start
         else:
             node.type='proc'

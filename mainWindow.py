@@ -29,6 +29,8 @@ class MainWindow(AppWindow):
         ts.connect('clicked', self.toggle_summary)
         self.toolbar.add(ts)
 
+        self.gcByType['run']=self.gc
+
         self.pick_heights()
         self.zoom(None,1)
         self.redraw()
@@ -134,29 +136,17 @@ class MainWindow(AppWindow):
             h=self.heights[b.proc]
             if b.type=='sleep' and not self.show_sleeps:
                 continue
-            if b.type=='run':
-                gc=self.gc
-                text=''
-            elif b.type=='sleep':
-                gc=self.blue_gc
-            elif b.type=='queue':
-                gc=self.cyan_gc
-            else:
-                gc=self.green_gc
-                text='blocking io for '+b.proc
             if 'repframe' in b.__dict__:
                 text=b.repframe
-            self.draw_rectangle(gc, b.start, b.end, h, text)
+            else:
+                text=''
+            self.draw_rectangle(self.gcByType[b.type], b.start, b.end, h, text)
         for l in self.links:
             if l.source not in self.heights or l.target not in self.heights:
                 continue
             y1=self.heights[l.source]+int(self.rowheight/2)
             y2=self.heights[l.target]+int(self.rowheight/2)
-            if l.istransfer:
-                gc=self.red_gc
-            else:
-                gc=self.blue_gc
-            self.draw_line(gc, l.start, y1, l.end, y2)
+            self.draw_line(self.red_gc, l.start, y1, l.end, y2)
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
     def launchFlameWindow(self, ev, p):

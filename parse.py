@@ -11,6 +11,27 @@ class struct:
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
+meaning={
+    'W': 'write',
+    'D': 'discard',
+    'R': 'read',
+    'N': 'no-op',
+    'F': '[fua]',
+    'A': '[read-ahead]',
+    'S': '[sync]',
+    'M': '[metadata]',
+    'E': '[secure]'
+}
+
+def decode_rwbs(rwbs):
+    out=''
+    if rwbs[0]=='F':
+        out+='flushing '
+        rwbs=rwbs[1:]
+    for l in rwbs:
+        out+=meaning[l]+' '
+    return out
+
 def parse(fn):
     f = file(fn)
 
@@ -223,7 +244,7 @@ def parse(fn):
         elif ev.event=='block:block_rq_insert':
             callerproc='%s(%d)'%(ev.comm,ev.pid)
             dev=ev.args.raw[0]
-            typ=ev.args.raw[1]
+            typ=decode_rwbs(ev.args.raw[1])
             offset=ev.args.raw[4]
             size=ev.args.raw[6]
             if dev not in activedevs:
@@ -234,7 +255,7 @@ def parse(fn):
                     i+=1
                 proc='%s/%d'%(dev,i)
             activedevs[proc]=1
-            activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc)
+            activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc, iotype=typ)
             links.append(struct(start=ev.time, end=ev.time, source=callerproc, target=proc, targetrun=activebios[dev+'/'+offset]))
             outlinks[callerproc].append(links[-1])
         elif ev.event=='block:block_rq_issue':

@@ -93,6 +93,17 @@ class AppWindow:
         self.green_gc.copy(self.gc)
         self.green_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=32768, green=65535, blue=32768))
 
+        self.gcByType={
+            'run': self.pink_gc,
+            'sleep': self.blue_gc,
+            'mixed': self.purple_gc,
+            'proc': self.grey_gc,
+            'bio': self.green_gc,
+            'queue': self.cyan_gc,
+            '': self.gc,
+            'empty': self.white_gc
+        }
+
         self.timing.realize()
 
         self.pmwidth = 1

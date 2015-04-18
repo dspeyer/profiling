@@ -63,15 +63,6 @@ class FlameWindow(AppWindow):
                 self.lheight+=self.maxdepth[i]+1
         self.height=self.lheight*self.rowheight
 
-        self.gcByType={
-            'run': self.pink_gc,
-            'sleep': self.blue_gc,
-            'mixed': self.purple_gc,
-            'proc': self.grey_gc,
-            'bio': self.green_gc,
-            'queue': self.cyan_gc
-        }
-
         cons = gtk.Button('Consolidated View')
         self.toolbar.add(cons)
         cons.connect('clicked', self.launchConsolidatedWindow)
