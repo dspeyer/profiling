@@ -27,6 +27,8 @@ class ConsolidatedWindow(AppWindow):
         self.window.set_title('Consolidated Flame View: %s' % target)
         self.data = data
         self.flameId=flameId
+        self.wallstart=float('inf')
+        self.wallend=float('-inf')
         self.rowheight=20
         self.lheight=0
         self.infn=0
@@ -36,11 +38,18 @@ class ConsolidatedWindow(AppWindow):
         self.intimeout=0
         self.inhardware=0
         self.dblcnt=0
+        self.involuntary=0
+        self.misckern=0
+        self.overhead=0
         self.root=treeNode()
         self.root.type='root'
         for cp in cps:
             for run in cp:
                 self.root.time += run.end - run.start
+                if run.end>self.wallend:
+                    self.wallend=run.end
+                if run.start<self.wallstart:
+                    self.wallstart=run.start
                 self.accumulate(self.root, run, 1)
         self.addEmpty(self.root)
         self.height=self.lheight * self.rowheight
@@ -64,10 +73,10 @@ class ConsolidatedWindow(AppWindow):
         win = gtk.Window(gtk.WINDOW_TOPLEVEL)
         win.set_title('Stats')
         win.set_keep_above(True)
-        tab = gtk.Table(2,11)
+        tab = gtk.Table(2,14)
         win.add(tab)
         self.row=0
-        self.statsrow(tab,'Wall time:',self.data.endtime-self.data.starttime)
+        self.statsrow(tab,'Wall time:',self.wallend-self.wallstart)
         self.statsrow(tab,'Total time:',self.root.time)
         self.statsrow(tab,'In understood functions:',self.infn)
         self.statsrow(tab,'Running but not sampled:',self.inrunns)
@@ -75,8 +84,11 @@ class ConsolidatedWindow(AppWindow):
         self.statsrow(tab,'Waiting on other path:',self.inas)
         self.statsrow(tab,'Waits that timed out:',self.intimeout)
         self.statsrow(tab,'Waits "for" hardware:',self.inhardware)
+        self.statsrow(tab,'Involuntary sleeps:',self.involuntary)
+        self.statsrow(tab,'Miscellaneous kernel blocks:',self.misckern)
+        self.statsrow(tab,'Scheduler overhead:',self.overhead)
         self.statsrow(tab,'Double counted (early starts):',self.dblcnt)
-        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware - self.dblcnt
+        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead - self.dblcnt
         self.statsrow(tab,'Total Accounted:',total)
         self.statsrow(tab,'Unaccounted:',self.root.time - total)
         win.show_all()
@@ -135,6 +147,8 @@ class ConsolidatedWindow(AppWindow):
             h+=1
         if h>self.lheight:
             self.lheight=h
+        if box.type=='run' and 'inlink' in box.__dict__ and box.inlink.outtime<start:
+            self.overhead += start - box.inlink.outtime
         time=box.end-start
         if 'children' in box.wdata[self.flameId].__dict__:
             for child in box.wdata[self.flameId].children:
@@ -150,6 +164,12 @@ class ConsolidatedWindow(AppWindow):
                 self.inhardware+=time
         elif 'async' in box.wdata[self.flameId].__dict__:
             topframe.async.append(struct(aschild=box.wdata[self.flameId].async,maxtime=time))
+        elif 'special' in box.__dict__:
+            if box.special=='retint_careful':
+                self.involuntary += time
+            if box.special=='wait_for_completion':
+                self.misckern += time
+                
 
     def addEmpty(self, node):
         if node.type in ['empty', 'async']:

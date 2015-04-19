@@ -122,6 +122,8 @@ def parse(fn):
     wokenbyinterrupt={}
     lastinterruption={}    
 
+    special={}
+
     for ev in evs:
         if ev.event=='sched:sched_switch':
             oldp='%s(%s)'%(ev.args.prev_comm,ev.args.prev_pid)
@@ -168,6 +170,9 @@ def parse(fn):
             if newp in wokenbyinterrupt and sleeps[newp]:
                 sleeps[newp][-1].interrupt = wokenbyinterrupt[newp]
                 del wokenbyinterrupt[newp]
+            if sleeps[newp] and newp in special:
+                sleeps[newp][-1].special=special[newp]
+                del special[newp]
             # Handle links
             if inlinks[newp]:
                 for inlink in inlinks[newp]:
@@ -188,14 +193,15 @@ def parse(fn):
                 outlinks[oldp]=[]
             is_interrupt=False
             for frame in ev.stack:
-                if frame.function in ['retint_careful', 'jbd2_journal_commit_transaction', 'wait_for_completion']:
-                    is_interrupt=True
+                if frame.function in ['retint_careful', 'wait_for_completion']:
+                    is_interrupt=frame.function
                 if frame.function == 'submit_bio_wait':
                     is_bio=True
             if is_interrupt and not is_bio:
                 links.append(struct(source=oldp,target=oldp,start=ev.time,outtime=ev.time,sourcerun=runs[oldp][-1],horizontal=True))
                 inlinks[oldp].append(links[-1])
                 runs[oldp][-1].horizoutlink=links[-1]
+                special[oldp]=is_interrupt
         elif ev.event in ['sched:sched_wakeup', 'sched:sched_process_fork']:
             source='%s(%s)'%(ev.comm,ev.pid)
             if ev.event=='sched:sched_wakeup':

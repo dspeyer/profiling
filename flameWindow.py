@@ -225,6 +225,8 @@ class FlameWindow(AppWindow):
             return sleep.start            
 
     def rtag(self, box, parent, stack=[], cpSameAs=None):
+        if box.end < self.starttime:
+            return
         d=box.wdata[self.id]
         if 'cpSameAs' in d.__dict__:
             return
@@ -233,7 +235,6 @@ class FlameWindow(AppWindow):
             d.parent=None
             self.roots[-1].append(box)
         elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
-            print 'marking %s %f-%f as async of %s %f-%f'%(box.proc,box.start,box.end,parent.proc,parent.start,parent.end)
             parent.wdata[self.id].async=box
             d.cpSameAs=None
             d.parent=None
