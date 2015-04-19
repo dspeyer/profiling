@@ -33,6 +33,9 @@ class ConsolidatedWindow(AppWindow):
         self.inrunns=0
         self.inbio=0
         self.inas=0
+        self.intimeout=0
+        self.inhardware=0
+        self.dblcnt=0
         self.root=treeNode()
         self.root.type='root'
         for cp in cps:
@@ -52,28 +55,30 @@ class ConsolidatedWindow(AppWindow):
         self.redraw()
         self.window.show_all()
 
+    def statsrow(self,tab,text,time):
+        tab.attach(gtk.Label(text), 0, 1, self.row, self.row+1)
+        tab.attach(gtk.Label(' %.1f%s' % unitify(time)), 1, 2, self.row, self.row+1)
+        self.row+=1
+
     def stats(self, ev):
         win = gtk.Window(gtk.WINDOW_TOPLEVEL)
         win.set_title('Stats')
         win.set_keep_above(True)
-        tab = gtk.Table(2,8)
+        tab = gtk.Table(2,11)
         win.add(tab)
-        tab.attach(gtk.Label('Wall time:'),0,1,0,1)
-        tab.attach(gtk.Label(' %.1f%s' % unitify(self.data.endtime-self.data.starttime)), 1,2,0,1)
-        tab.attach(gtk.Label('Total time:'),0,1,1,2)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.root.time)),1,2,1,2)
-        tab.attach(gtk.Label('In understood functions:'),0,1,2,3)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.infn)), 1,2,2,3)
-        tab.attach(gtk.Label('Running but not sampled:'),0,1,3,4)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.inrunns)), 1,2,3,4)
-        tab.attach(gtk.Label('In blocking I/O:'),0,1,4,5)
-        tab.attach(gtk.Label('%.1f%s'% unitify(self.inbio)), 1,2,4,5)
-        tab.attach(gtk.Label('Waiting on other path:'),0,1,5,6)
-        tab.attach(gtk.Label('%.1f%s'% unitify(self.inas)), 1,2,5,6)
-        tab.attach(gtk.Label('Total Accounted:'),0,1,6,7)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.infn + self.inrunns + self.inbio + self.inas)), 1,2,6,7)
-        tab.attach(gtk.Label('Unaccounted:'),0,1,7,8)
-        tab.attach(gtk.Label('%.1f%s' % unitify(self.root.time - self.infn - self.inrunns - self.inbio - self.inas)), 1,2,7,8)
+        self.row=0
+        self.statsrow(tab,'Wall time:',self.data.endtime-self.data.starttime)
+        self.statsrow(tab,'Total time:',self.root.time)
+        self.statsrow(tab,'In understood functions:',self.infn)
+        self.statsrow(tab,'Running but not sampled:',self.inrunns)
+        self.statsrow(tab,'In blocking I/O:',self.inbio)
+        self.statsrow(tab,'Waiting on other path:',self.inas)
+        self.statsrow(tab,'Waits that timed out:',self.intimeout)
+        self.statsrow(tab,'Waits "for" hardware:',self.inhardware)
+        self.statsrow(tab,'Double counted (early starts):',self.dblcnt)
+        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware - self.dblcnt
+        self.statsrow(tab,'Total Accounted:',total)
+        self.statsrow(tab,'Unaccounted:',self.root.time - total)
         win.show_all()
 
     def put_stack(self, node, stack, dur, typ):
@@ -96,41 +101,54 @@ class ConsolidatedWindow(AppWindow):
 
     def accumulate(self, node, box, h):
         h+=1
+        if 'cutstart' in box.wdata[self.flameId].__dict__:
+            start=box.wdata[self.flameId].cutstart
+        else:
+            start=box.start
+        if box.wdata[self.flameId].parent and start<box.wdata[self.flameId].parent.start:
+            self.dblcnt +=  box.wdata[self.flameId].parent.start - start
         node = node.children[self.get_text(box)]
         topframe = node
         if box.type in ['bio', 'queue']:
             node.type=box.type
-            self.inbio += box.end-box.start
+            self.inbio += box.end-start
         else:
             node.type='proc'
-        node.time += box.end-box.start
+        node.time += box.end-start
         if 'stack' in box.__dict__:
-            topframe = self.put_stack(node, box.stack, box.end-box.start, box.type)
+            topframe = self.put_stack(node, box.stack, box.end-start, box.type)
             h += len(box.stack)
         elif 'stacks' in box.__dict__ and len(box.stacks)>0:
-            self.infn += box.end-box.start
+            self.infn += box.end-start
             nstacks=len(box.stacks)
             biggeststack=0
             for stack in box.stacks:
-                self.put_stack(node, stack, (box.end-box.start)/nstacks, box.type)
+                self.put_stack(node, stack, (box.end-start)/nstacks, box.type)
                 if len(stack)>biggeststack:
                     biggeststack=len(stack)
             h+=biggeststack
         elif box.type=='run':
-            self.put_stack(node, [struct(function='no samples', file='no samples')], box.end-box.start, box.type)
-            self.inrunns += box.end-box.start
+            self.put_stack(node, [struct(function='no samples', file='no samples')], box.end-start, box.type)
+            self.inrunns += box.end-start
         elif box.type=='sleep':
-            topframe=self.put_stack(node, [struct(function='no stack, WTF?', file='no stack, WTF?')], box.end-box.start, box.type)
+            topframe=self.put_stack(node, [struct(function='no stack, WTF?', file='no stack, WTF?')], box.end-start, box.type)
             h+=1
         if h>self.lheight:
             self.lheight=h
-        time=box.end-box.start
+        time=box.end-start
         if 'children' in box.wdata[self.flameId].__dict__:
             for child in box.wdata[self.flameId].children:
                 self.accumulate(topframe, child, h+1)
                 time -= child.end-child.start
-        if 'async' in box.wdata[self.flameId].__dict__:
-            print 'passing async for %s %f-%f'%(box.proc, box.start, box.end)
+        if 'interrupt' in box.__dict__:
+            node = topframe.children[box.interrupt+'?']
+            node.type='interrupt'
+            node.time+=time
+            if box.interrupt=='timeout':
+                self.intimeout+=time
+            else:
+                self.inhardware+=time
+        elif 'async' in box.wdata[self.flameId].__dict__:
             topframe.async.append(struct(aschild=box.wdata[self.flameId].async,maxtime=time))
 
     def addEmpty(self, node):

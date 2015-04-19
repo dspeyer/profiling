@@ -165,6 +165,8 @@ class FlameWindow(AppWindow):
                     y-=self.rowheight
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged, depth+1)
+            elif 'interrupt' in box.__dict__:
+                self.put_frame(box.interrupt, box.start, box.end, y, 'interrupt', struct(canon=False,tentative=False), True)
 
     def try_connect(self, frame, text, start, end, typ):
         if frame and text==frame.text and self.xfromt(start)-self.xfromt(frame.end)<5:
@@ -175,7 +177,7 @@ class FlameWindow(AppWindow):
         else:
             return False
 
-    def put_frame(self, text, start, end, y, typ, can_connect):
+    def put_frame(self, text, start, end, y, typ, can_connect, is_instant=False):
         if can_connect.canon and self.try_connect(self.ipFrames[y], text, start, end, typ):
             return struct(canon=True, tentative=False)
         elif can_connect.tentative and self.try_connect(self.tentativeFrames[y], text, start, end, typ):
@@ -186,10 +188,10 @@ class FlameWindow(AppWindow):
             return struct(canon=False, tentative=True)
         else:
             if self.ipFrames[y] and self.xfromt(start)-self.xfromt(self.ipFrames[y].end)<2 and self.xfromt(end)-self.xfromt(start)<2:
-                self.tentativeFrames[y]=struct(text=text,start=start,end=end,typ=typ)
+                self.tentativeFrames[y]=struct(text=text,start=start,end=end,typ=typ,is_instant=is_instant)
             else:
                 self.finalize_frame(self.ipFrames[y], y, start)
-                self.ipFrames[y]=struct(text=text,start=start,end=end,typ=typ)
+                self.ipFrames[y]=struct(text=text,start=start,end=end,typ=typ,is_instant=is_instant)
             return struct(canon=False, tentative=False)
 
     def finalize_frame(self, frame, y, cutoff=None):
@@ -199,7 +201,7 @@ class FlameWindow(AppWindow):
             else:
                 end=frame.end
             if end > frame.start:
-                self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text)
+                self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text, frame.is_instant)
 
     def de_facto_start(self, sleep):
         try:

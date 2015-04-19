@@ -119,6 +119,9 @@ def parse(fn):
     starttime=evs[0].time
     endtime=evs[-1].time
 
+    wokenbyinterrupt={}
+    lastinterruption={}    
+
     for ev in evs:
         if ev.event=='sched:sched_switch':
             oldp='%s(%s)'%(ev.args.prev_comm,ev.args.prev_pid)
@@ -162,6 +165,9 @@ def parse(fn):
             else:
                 switchedout[oldp]=ev.time
                 switchedoutstack[oldp]=ev.stack
+            if newp in wokenbyinterrupt and sleeps[newp]:
+                sleeps[newp][-1].interrupt = wokenbyinterrupt[newp]
+                del wokenbyinterrupt[newp]
             # Handle links
             if inlinks[newp]:
                 for inlink in inlinks[newp]:
@@ -198,17 +204,29 @@ def parse(fn):
                 target='%s(%s)'%(ev.args.child_comm, ev.args.child_pid)
             is_interrupt=False
             is_bio=False
+            is_timeout=False
             for frame in ev.stack:
-                if frame.function in ['do_IRQ', 'apic_timer_interrupt']:
+                if frame.function == 'do_IRQ':
                     is_interrupt=True
-                if frame.function in ['bio_endio']:
+                if frame.function == 'bio_endio':
                     is_bio=True
+                if frame.function == 'apic_timer_interrupt':
+                    is_timeout=True
             if is_bio:
                 if target in lastfinishforproc:
                     links.append(struct(source=lastfinishforproc[target].proc, sourcerun=lastfinishforproc[target], target=target, start=ev.time, outtime=ev.time))
                     inlinks[target].append(links[-1])
                     del lastfinishforproc[target]
+                continue
             if is_interrupt:
+                if source in lastinterruption:
+                    wokenbyinterrupt[target]=lastinterruption[source]
+                    del lastinterruption[source]
+                else:
+                    wokenbyinterrupt[target]='unknown'
+                continue
+            if is_timeout:
+                wokenbyinterrupt[target]='timeout'
                 continue
             links.append(struct(source=source,target=target,start=ev.time,stack=ev.stack))
             inlinks[target].append(links[-1])
@@ -263,6 +281,9 @@ def parse(fn):
             offset=ev.args.raw[4]
             if dev+'/'+offset not in activebios:
                 print 'WARNING: unstarted io issue at %f'%ev.time
+            offset='0'
+            if dev+'/'+offset not in activebios:
+                print 'WARNING: stillunstarted io issue at %f'%ev.time
                 continue
             queue = activebios[dev+'/'+offset]
             queue.end=ev.time
@@ -295,6 +316,9 @@ def parse(fn):
             del activebios[dev+'/'+offset]
             del activedevs[run.proc]
             lastfinishforproc[run.behalfof]=run
+        elif ev.event=='irq:irq_handler_entry':
+            proc='%s(%s)'%(ev.comm,ev.pid)
+            lastinterruption[proc]=ev.args.name            
         else:
             print 'ERROR: unhandled event "%s"'%ev.event
 

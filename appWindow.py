@@ -95,6 +95,9 @@ class AppWindow:
         self.yellow_gc =  self.content.window.new_gc()
         self.yellow_gc.copy(self.gc)
         self.yellow_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=65535, green=65535, blue=0))
+        self.orange_gc =  self.content.window.new_gc()
+        self.orange_gc.copy(self.gc)
+        self.orange_gc.foreground=colormap.alloc_color(gtk.gdk.Color(red=65535, green=49152, blue=0))
 
         self.gcByType={
             'run': self.pink_gc,
@@ -105,7 +108,8 @@ class AppWindow:
             'queue': self.cyan_gc,
             '': self.gc,
             'empty': self.white_gc,
-            'async': self.yellow_gc
+            'async': self.yellow_gc,
+            'interrupt': self.orange_gc
         }
 
         self.timing.realize()
@@ -203,7 +207,7 @@ class AppWindow:
     def xfromt(self,t):
         return int(self.width*(t-self.starttime)/(self.endtime-self.starttime))-self.offset
 
-    def draw_rectangle(self, gc, start, end, h, text):
+    def draw_rectangle(self, gc, start, end, h, text, is_instant=False):
         x1 = self.xfromt(start)
         x2 = self.xfromt(end)
         if x2-x1>self.rectmargin:
@@ -215,18 +219,23 @@ class AppWindow:
         if x2>self.pmwidth:
             x2=self.pmwidth
         y1 = h
-        self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight-1)
         if text:
             layout=pango.Layout(self.font)
             layout.set_text(text)
-            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight-1))
             textwidth=layout.get_pixel_size()[0]
+        if is_instant and x2-x1 > textwidth:
+            x1=x2-textwidth
+        self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight-1)
+        if text:
+            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(x1, y1, x2-x1, self.rowheight-1))
             repeat=int(math.ceil(textwidth/400.0)*400)
             x=x1
             while x==x1 or x+textwidth<x2:
                 self.pixmap.draw_layout(self.gc, x, y1, layout)
                 x+=repeat
             self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, max(self.width,self.pmwidth), self.height))
+        if is_instant:
+            self.pixmap.draw_polygon(self.white_gc, True, [(x1,y1+13),(x1,y1+self.rowheight-1),(x2,y1+self.rowheight-1)])
 
     def draw_line(self, gc, t1, y1, t2, y2):
         x1=self.xfromt(t1)
