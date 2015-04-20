@@ -124,6 +124,7 @@ class AppWindow:
         self.timing.connect('expose-event', self.expose_event, 'timingpixmap')
 
         self.font = self.window.create_pango_context()
+        self.layout=pango.Layout(self.font)
 
         self.rectmargin=0
 
@@ -147,24 +148,23 @@ class AppWindow:
             gap=mant*pt
         t=0
         while t+self.starttimelabels<self.endtimelabels:
-            layout=pango.Layout(self.font)
             if self.raw_times:
-                layout.set_text('%f'%(self.starttimelabels+t))
+                self.layout.set_text('%f'%(self.starttimelabels+t))
             else:
                 if gap > 1:
-                    layout.set_text('%ds' % round(t))
+                    self.layout.set_text('%ds' % round(t))
                 elif gap > 1e-3:
-                    layout.set_text('%ds %dms' % (int(t), round(1e3*(t%1))))
+                    self.layout.set_text('%ds %dms' % (int(t), round(1e3*(t%1))))
                 elif gap > 1e-6:
-                    layout.set_text('%ds %dms %dus' % (int(t), int(1e3*(t%1)), round(1e6*(t%1e-3))))
+                    self.layout.set_text('%ds %dms %dus' % (int(t), int(1e3*(t%1)), round(1e6*(t%1e-3))))
                 elif gap > 1e-9:
-                    layout.set_text('%ds %dms %dus %dns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), round(1e9*(t%1e-6))))
+                    self.layout.set_text('%ds %dms %dus %dns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), round(1e9*(t%1e-6))))
                 else:
-                    layout.set_text('%ds %dms %dus %fns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), 1e9*(t%1e-6)))
+                    self.layout.set_text('%ds %dms %dus %fns' % (int(t), int(1e3*(t%1)), int(1e6*(t%1e-3)), 1e9*(t%1e-6)))
             x = self.xfromt(self.starttimelabels+t)+lwidth
-            if x < self.pmwidth and x+layout.get_pixel_size()[0] > 0 :
+            if x < self.pmwidth and x+self.layout.get_pixel_size()[0] > 0 :
                 self.timingpixmap.draw_line(self.red_gc, x, 0, x, 10)
-                self.timingpixmap.draw_layout(gc, x+2, 0, layout)
+                self.timingpixmap.draw_layout(gc, x+2, 0, self.layout)
             t+=gap
         self.timing.queue_draw_area(0, 0, self.width, self.rowheight)
 
@@ -220,9 +220,8 @@ class AppWindow:
             x2=self.pmwidth
         y1 = h
         if text:
-            layout=pango.Layout(self.font)
-            layout.set_text(text)
-            textwidth=layout.get_pixel_size()[0]
+            self.layout.set_text(text)
+            textwidth=self.layout.get_pixel_size()[0]
         if is_instant and x2-x1 > textwidth:
             x1=x2-textwidth
         self.pixmap.draw_rectangle(gc, True, x1, y1, x2-x1, self.rowheight-1)
@@ -231,9 +230,9 @@ class AppWindow:
             repeat=int(math.ceil(textwidth/400.0)*400)
             x=x1
             while x==x1 or x+textwidth<x2:
-                self.pixmap.draw_layout(self.gc, x, y1, layout)
+                self.pixmap.draw_layout(self.gc, x, y1, self.layout)
                 x+=repeat
-            self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, max(self.width,self.pmwidth), self.height))
+                self.gc.set_clip_rectangle(gtk.gdk.Rectangle(0, 0, max(self.width,self.pmwidth), self.height))
         if is_instant:
             self.pixmap.draw_polygon(self.white_gc, True, [(x1,y1+13),(x1,y1+self.rowheight-1),(x2,y1+self.rowheight-1)])
 
