@@ -208,30 +208,27 @@ def parse(fn):
                 target='%s(%s)'%(ev.args.comm, ev.args.pid)
             else:
                 target='%s(%s)'%(ev.args.child_comm, ev.args.child_pid)
-            is_interrupt=False
-            is_bio=False
-            is_timeout=False
+            irq_wakeup={}
             for frame in ev.stack:
-                if frame.function == 'do_IRQ':
-                    is_interrupt=True
-                if frame.function == 'bio_endio':
-                    is_bio=True
-                if frame.function == 'apic_timer_interrupt':
-                    is_timeout=True
-            if is_bio:
+                if frame.function in ['do_IRQ','smp_reschedule_interrupt', 'bio_endio', 'apic_timer_interrupt']:
+                    irq_wakeup[frame.function]=1
+            if 'bio_endio' in irq_wakeup:
                 if target in lastfinishforproc:
                     links.append(struct(source=lastfinishforproc[target].proc, sourcerun=lastfinishforproc[target], target=target, start=ev.time, outtime=ev.time))
                     inlinks[target].append(links[-1])
                     del lastfinishforproc[target]
                 continue
-            if is_interrupt:
+            if 'do_IRQ' in irq_wakeup:
                 if source in lastinterruption:
                     wokenbyinterrupt[target]=lastinterruption[source]
                     del lastinterruption[source]
                 else:
                     wokenbyinterrupt[target]='unknown'
                 continue
-            if is_timeout:
+            if 'smp_reschedule_interrupt' in irq_wakeup:
+                wokenbyinterrupt[target]='IPI'
+                continue
+            if 'apic_timer_interrupt' in irq_wakeup:
                 wokenbyinterrupt[target]='timeout'
                 continue
             links.append(struct(source=source,target=target,start=ev.time,stack=ev.stack))
