@@ -285,8 +285,12 @@ class FlameWindow(AppWindow):
         box.wdata[self.id].cp = cp
         if not box.wdata[self.id].parent:
             self.roots[cp].append(box)
-        if box.start<self.cpstart[cp]:
-            self.cpstart[cp]=box.start
+        if 'cutstart' in box.wdata[self.id].__dict__:
+            start = box.wdata[self.id].__dict__
+        else:
+            start = box.start
+        if start<self.cpstart[cp]:
+            self.cpstart[cp]=start
         if box.end>self.cpend[cp]:
             self.cpend[cp]=box.end
         if 'children' in box.wdata[self.id].__dict__:
