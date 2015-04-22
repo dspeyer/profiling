@@ -214,7 +214,7 @@ def parse(fn):
                 target='%s(%s)'%(ev.args.child_comm, ev.args.child_pid)
             irq_wakeup={}
             for frame in ev.stack:
-                if frame.function in ['do_IRQ','smp_reschedule_interrupt', 'bio_endio', 'apic_timer_interrupt', 'tcp_rcv_established', 'tcp_finish_connect']:
+                if frame.function in ['do_IRQ','smp_reschedule_interrupt', 'bio_endio', 'apic_timer_interrupt', 'tcp_rcv_established', 'tcp_finish_connect', 'tcp_transmit_skb']:
                     irq_wakeup[frame.function]=1
             if 'bio_endio' in irq_wakeup:
                 if target in lastfinishforproc:
@@ -222,7 +222,7 @@ def parse(fn):
                     inlinks[target].append(links[-1])
                     del lastfinishforproc[target]
                 continue
-            if ('tcp_rcv_established' in irq_wakeup or 'tcp_finish_connect' in irq_wakeup) and source in justreceived:
+            if ('tcp_rcv_established' in irq_wakeup or 'tcp_finish_connect' in irq_wakeup) and source in justreceived and 'tcp_transmit_skb' not in irq_wakeup:
                 links.append(struct(sourcerun=justreceived[source],source=justreceived[source].proc,target=target,start=ev.time,stack=ev.stack,outtime=ev.time))
                 inlinks[target].append(links[-1])
                 del justreceived[source]
@@ -367,7 +367,7 @@ def parse(fn):
         bios.append(activebios[cp])
 
     for sock in activenet:
-        if 'end' not in activenet[sock].__dict__:
+        if 'end' not in activenet[sock].__dict__ or not activenet[sock].end:
             activenet[sock].end=endtime
 
     # Create repframes for sleeps
