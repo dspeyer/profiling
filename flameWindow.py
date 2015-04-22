@@ -256,14 +256,14 @@ class FlameWindow(AppWindow):
             else:
                 for i in xrange(len(stack)):
                     if box.inlink.source==stack[i].proc:
-                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], stack[i].par)
+                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], stack[i].box)
                             if i!=len(stack)-1 and d.parent:
                                 d.parent.wdata[self.id].cutstart=box.start
                                 d.parent.wdata[self.id].cutDownTo=stack[i].proc
                             return 
                 if 'prev' in box.__dict__:
                     newstack=copy(stack)
-                    newstack.append(struct(proc=box.proc, par=d.parent))
+                    newstack.append(struct(proc=box.proc, par=d.parent, box=box))
                     self.rtag(box.inlink.sourcerun, box.prev, newstack, box.prev)
                 else:
                     self.rtag(box.inlink.sourcerun, d.parent, stack, box)

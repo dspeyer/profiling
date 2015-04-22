@@ -124,6 +124,9 @@ def parse(fn):
 
     special={}
 
+    activenet={}
+    justreceived={}
+
     for ev in evs:
         if ev.event=='sched:sched_switch':
             oldp='%s(%s)'%(ev.args.prev_comm,ev.args.prev_pid)
@@ -192,6 +195,7 @@ def parse(fn):
                     outlink.sourcerun=runs[oldp][-1]
                 outlinks[oldp]=[]
             is_interrupt=False
+            is_bio=False
             for frame in ev.stack:
                 if frame.function in ['retint_careful', 'wait_for_completion']:
                     is_interrupt=frame.function
@@ -210,13 +214,18 @@ def parse(fn):
                 target='%s(%s)'%(ev.args.child_comm, ev.args.child_pid)
             irq_wakeup={}
             for frame in ev.stack:
-                if frame.function in ['do_IRQ','smp_reschedule_interrupt', 'bio_endio', 'apic_timer_interrupt']:
+                if frame.function in ['do_IRQ','smp_reschedule_interrupt', 'bio_endio', 'apic_timer_interrupt', 'tcp_rcv_established', 'tcp_finish_connect']:
                     irq_wakeup[frame.function]=1
             if 'bio_endio' in irq_wakeup:
                 if target in lastfinishforproc:
                     links.append(struct(source=lastfinishforproc[target].proc, sourcerun=lastfinishforproc[target], target=target, start=ev.time, outtime=ev.time))
                     inlinks[target].append(links[-1])
                     del lastfinishforproc[target]
+                continue
+            if ('tcp_rcv_established' in irq_wakeup or 'tcp_finish_connect' in irq_wakeup) and source in justreceived:
+                links.append(struct(sourcerun=justreceived[source],source=justreceived[source].proc,target=target,start=ev.time,stack=ev.stack,outtime=ev.time))
+                inlinks[target].append(links[-1])
+                del justreceived[source]
                 continue
             if 'do_IRQ' in irq_wakeup:
                 if source in lastinterruption:
@@ -322,6 +331,26 @@ def parse(fn):
         elif ev.event=='irq:irq_handler_entry':
             proc='%s(%s)'%(ev.comm,ev.pid)
             lastinterruption[proc]=ev.args.name            
+        elif ev.event in ['probe:tcp_v4_connect', 'probe:tcp_sendmsg']:
+            proc='%s(%s)'%(ev.comm,ev.pid)
+            dev='tcp sock: %s' % ev.args.sk
+            if dev not in activenet or 'end' in activenet[dev].__dict__:
+                activenet[dev]=struct(start=ev.time, end=None, type='bio', proc=dev, dev=dev)
+                if ev.event=='probe:tcp_v4_connect':
+                    activenet[dev].repframe='connect'
+                else:
+                    activenet[dev].repframe='content'
+                activenet[dev].iotype=activenet[dev].repframe
+            bios.append(activenet[dev])
+            links.append(struct(target=dev,targetrun=activenet[dev],start=ev.time,end=ev.time,source=proc))
+            outlinks[proc].append(links[-1])
+        elif ev.event in ['probe:tcp_rcv_established', 'probe:tcp_finish_connect']:
+            proc='%s(%s)'%(ev.comm,ev.pid)
+            dev='tcp sock: %s' % ev.args.sk
+            if dev not in activenet:
+                continue
+            activenet[dev].end=ev.time
+            justreceived[proc]=activenet[dev]
         else:
             print 'ERROR: unhandled event "%s"'%ev.event
 
@@ -336,6 +365,10 @@ def parse(fn):
     for cp in activebios:
         activebios[cp].end=endtime
         bios.append(activebios[cp])
+
+    for sock in activenet:
+        if 'end' not in activenet[sock].__dict__:
+            activenet[sock].end=endtime
 
     # Create repframes for sleeps
     for p in sleeps:
