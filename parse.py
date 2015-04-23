@@ -265,12 +265,21 @@ def parse(fn):
             inlinks[target].append(links[-1])
             switchedin[source]=-1
             switchedin[target]=ev.time
+            runningstacks[target]=[]
         elif ev.event=='cycles' or ev.event=='cpu-clock':
+            if ev.comm=='swapper':
+                continue # There are several swappers and the cycles event doesn't distinguish
             proc='%s(%d)'%(ev.comm,ev.pid)
             if proc in runningstacks:
                 runningstacks[proc].append(ev.stack)
             else:
-                print 'WARNING: sample for %s at %f which is not running according to sched events'%(proc,ev.time)
+                if proc in runs:
+                    if ev.time-runs[proc][-1].end < 2e-5:
+                        runs[proc][-1].stacks.append(ev.stack)
+                    else:
+                        print 'WARNING: dropping sample for %s at %f which left %d us ago according to sched events'%(proc,ev.time,int(1e6*(ev.time-runs[proc][-1].end)))
+                else:
+                    runningstacks[proc]=[ev.stack]
         elif ev.event=='block:block_rq_insert':
             callerproc='%s(%d)'%(ev.comm,ev.pid)
             dev=ev.args.raw[0]
@@ -335,7 +344,7 @@ def parse(fn):
             proc='%s(%s)'%(ev.comm,ev.pid)
             dev='tcp sock: %s' % ev.args.sk
             if dev not in activenet or 'end' in activenet[dev].__dict__:
-                activenet[dev]=struct(start=ev.time, end=None, type='bio', proc=dev, dev=dev)
+                activenet[dev]=struct(start=ev.time, type='bio', proc=dev, dev=dev)
                 if ev.event=='probe:tcp_v4_connect':
                     activenet[dev].repframe='connect'
                 else:
