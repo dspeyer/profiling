@@ -7,5 +7,5 @@ from sys import argv
 
 data=parse(argv[1])
 
-win=MainWindow(data)
+win=MainWindow(data, argv[1])
 gtk.main()

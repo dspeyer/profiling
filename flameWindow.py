@@ -10,16 +10,17 @@ from parse import struct
 grace=1e-3
 
 class FlameWindow(AppWindow):
-    def __init__(self, data, target):
+    def __init__(self, data, target, fn):
         AppWindow.__init__(self, data.runs[target][0].start, data.runs[target][-1].end)
         self.starttimelabels=data.starttime
         self.endtimelabels=data.endtime
-        self.window.set_title('Flameview: '+target)
+        self.window.set_title('Flameview: %s [%s]'%(target,fn))
 
         self.target=target
         self.data=data
         self.boxes=data.boxes
         self.links=data.links
+        self.fn=fn
 
         self.rectmargin=2
 
@@ -343,4 +344,4 @@ class FlameWindow(AppWindow):
         return  (self.lheight-logY-1)*self.rowheight
 
     def launchConsolidatedWindow(self, ev):
-        ConsolidatedWindow(self.data, [self.roots[i] for i in self.roots], self.id, self.target)
+        ConsolidatedWindow(self.data, [self.roots[i] for i in self.roots], self.id, self.target, self.fn)

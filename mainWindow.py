@@ -9,15 +9,16 @@ from flameWindow import FlameWindow
 from parse import struct
 
 class MainWindow(AppWindow):
-    def __init__(self, data):
+    def __init__(self, data, fn):
         AppWindow.__init__(self, data.starttime, data.endtime)
         self.window.connect("delete_event",gtk.main_quit)
         self.window.connect("destroy_event",gtk.main_quit)
-        self.window.set_title('Runs and Links View')
+        self.window.set_title('Runs and Links View [%s]' % fn)
 
         self.data=data
         self.boxes=data.boxes
         self.links=data.links
+        self.fn=fn
 
         self.show_sleeps=False
         ts=gtk.ToggleButton('Show Sleeps')
@@ -150,4 +151,4 @@ class MainWindow(AppWindow):
         self.content.queue_draw_area(0, 0, self.width, self.height)
 
     def launchFlameWindow(self, ev, p):
-        flame=FlameWindow(self.data, p)
+        flame=FlameWindow(self.data, p, self.fn)

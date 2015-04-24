@@ -22,9 +22,9 @@ def unitify(t):
         return (1e9*t, 'ns')
 
 class ConsolidatedWindow(AppWindow):
-    def __init__(self, data, cps, flameId, target):
+    def __init__(self, data, cps, flameId, target, fn):
         AppWindow.__init__(self, 0, 1) # We'll reset these later
-        self.window.set_title('Consolidated Flame View: %s' % target)
+        self.window.set_title('Consolidated Flame View: %s [%s]' % (target,fn))
         self.data = data
         self.flameId=flameId
         self.wallstart=float('inf')
