@@ -301,11 +301,13 @@ def parse(fn):
             dev=ev.args.raw[0]
             offset=ev.args.raw[4]
             if dev+'/'+offset not in activebios:
-                print 'WARNING: unstarted io issue at %f'%ev.time
-            offset='0'
-            if dev+'/'+offset not in activebios:
-                print 'WARNING: stillunstarted io issue at %f'%ev.time
-                continue
+                print 'WARNING: io issue offset not matched at %f, trying 0...'%ev.time
+                offset='0'
+                if dev+'/'+offset not in activebios:
+                    print 'WARNING: stillunstarted io issue at %f'%ev.time
+                    continue
+                else:
+                    print "...ok"
             queue = activebios[dev+'/'+offset]
             queue.end=ev.time
             bios.append(queue)
@@ -316,12 +318,12 @@ def parse(fn):
             activebios[dev+'/'+offset]=run
             run.prev=queue
             if dev not in lastfinishondev or queue.start>lastfinishondev[dev].end:
-                links.append(struct(start=ev.time, end=ev.time, source=queue.proc, target=run.proc, horizontal=True, sourcerun=queue, targetrun=run))
+                links.append(struct(start=ev.time, end=ev.time, outtime=ev.time, source=queue.proc, target=run.proc, horizontal=True, sourcerun=queue, targetrun=run))
                 queue.outlink=links[-1]
                 run.inlink=links[-1]
             else:
                 lf=lastfinishondev[dev]
-                links.append(struct(start=lf.end, end=ev.time, source=lf.proc, target=run.proc, sourcerun=lf, targetrun=run))
+                links.append(struct(start=lf.end, end=ev.time, outtime=ev.time, source=lf.proc, target=run.proc, sourcerun=lf, targetrun=run))
                 lf.outlink=links[-1]
                 run.inlink=links[-1]
         elif ev.event=='block:block_rq_complete':            
@@ -370,6 +372,9 @@ def parse(fn):
     for p in switchedin:
         if switchedin[p]!=-1:
             runs[p].append(struct(start=switchedin[p], end=endtime))
+            for ol in outlinks[p]:
+                ol.sourcerun=runs[p][-1]
+                ol.outtime=endtime
 
     for cp in activebios:
         activebios[cp].end=endtime
