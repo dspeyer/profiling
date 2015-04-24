@@ -18,7 +18,9 @@ class AppWindow:
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_default_size(800,600)
 
+        mainHBox = gtk.HBox()
         mainVBox = gtk.VBox()
+        vbox2 = gtk.VBox()
         hbox = gtk.HBox()
 
         self.toolbar = gtk.HBox()
@@ -31,7 +33,7 @@ class AppWindow:
         rt=gtk.ToggleButton('Raw Times')
         rt.connect('clicked', self.toggle_raw_times)
         save=gtk.Button('Save as Image')
-        save.connect('clicked', self.save_part1)
+        save.connect('clicked', self.get_filename_and_callback, self.save_part2)
 
         vscroll = gtk.ScrolledWindow()
         vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
@@ -45,6 +47,7 @@ class AppWindow:
         tscroll.get_hscrollbar().set_child_visible(False)
 
         self.legend = gtk.VBox()
+        self.nsLegend = gtk.VBox()
 
         self.content = gtk.DrawingArea()
         self.timing = gtk.DrawingArea()
@@ -54,9 +57,12 @@ class AppWindow:
 
         self.window.add(mainVBox)
         mainVBox.pack_start(self.toolbar, expand=False, fill=False)
-        mainVBox.pack_start(vscroll, expand=True, fill=True)
-        mainVBox.pack_start(tscroll, expand=False, fill=False)
-        mainVBox.pack_start(hscrollbar, expand=False, fill=False)
+        mainVBox.pack_start(mainHBox, expand=True, fill=True)
+        mainHBox.pack_start(self.nsLegend, expand=False, fill=False)
+        mainHBox.pack_start(vbox2, expand=True, fill=True)
+        vbox2.pack_start(vscroll, expand=True, fill=True)
+        vbox2.pack_start(tscroll, expand=False, fill=False)
+        vbox2.pack_start(hscrollbar, expand=False, fill=False)
         self.toolbar.add(zi)
         self.toolbar.add(zo)
         self.toolbar.add(rt)
@@ -248,7 +254,7 @@ class AppWindow:
         self.pixmap.draw_line(gc, x1, y1, x2, y2)
 
 
-    def save_part1(self, widget):
+    def get_filename_and_callback(self, widget, callback):
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         vb=gtk.VBox()
         window.add(vb)
@@ -256,7 +262,7 @@ class AppWindow:
         entry=gtk.Entry()
         vb.add(entry)
         button=gtk.Button('Save')
-        button.connect('clicked', self.save_part2, entry)
+        button.connect('clicked', callback, entry)
         vb.add(button)
         window.show_all()
 
@@ -287,5 +293,49 @@ class AppWindow:
             gtk.BUTTONS_CLOSE, message)
         md.run()
         md.destroy()
+
+
+    def flame_or_consolidated_legend(self, which):
+        lab=gtk.Label('<span font="serif" size="large">Legend</span>')
+        lab.set_use_markup(True)
+        self.nsLegend.pack_start(lab, expand=False, fill=False)
+        eb = gtk.EventBox()
+        eb.set_border_width(3)
+        self.nsLegend.pack_start(eb, expand=False, fill=False)
+        eb.modify_bg(gtk.STATE_NORMAL, gtk.gdk.Color(red=65535, green=65535, blue=65535))
+        leg = gtk.VBox()
+        leg.set_border_width(3)
+        leg.set_spacing(3)
+        eb.add(leg)
+        entries=[('running', 'run'),
+                 ('blocked', 'sleep'),
+                 ('running and blocked', 'mixed'),
+                 ('device I/O', 'bio'),
+                 ('device queue', 'queue'),
+                 ('process or thread', 'proc'),
+                 ('interrupt', 'interrupt')];
+        if which=='consolidated':
+            entries.append(('waiting on other control path', 'async'))
+        else:
+            entries.append(('caused to run', 'empty'))
+            entries.append(('control path separator', 'empty'))                           
+        for disp,name in entries:
+            pm = gtk.gdk.Pixmap(self.content.window, 20, 20)
+            pm.draw_rectangle(self.gcByType[name],True,0,0,20,20);
+            if which=='flame':
+                if name=='interrupt':
+                    pm.draw_polygon(self.white_gc, True, [(0,13), (0,20), (20,20)])
+                elif disp=='caused to run':
+                    pm.draw_line(self.red_gc, 0, 20, 20, 0)
+                elif disp=='control path separator':
+                    pm.draw_line(self.gc, 0, 10, 20, 10)
+            img = gtk.Image()
+            img.set_from_pixmap(pm,None)
+            lab = gtk.Label(disp)
+            box=gtk.HBox()
+            box.pack_start(img, expand=False)
+            box.pack_start(lab, expand=False)
+            leg.pack_start(box, expand=False)
+        self.nsLegend.show_all()
 
 AppWindow.id=0

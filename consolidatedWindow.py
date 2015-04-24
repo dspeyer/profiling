@@ -55,43 +55,62 @@ class ConsolidatedWindow(AppWindow):
         self.height=self.lheight * self.rowheight
         self.endtime = self.root.time
 
-        ss=gtk.Button('Show Stats')
-        ss.connect('clicked', self.stats)
+        ss=gtk.Button('Save Stats')
+        ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2)
         self.toolbar.add(ss)
 
         self.rectmargin = 2
 
+        self.flame_or_consolidated_legend('consolidated')
+
+        lab=gtk.Label('<span size="large">Summary Stats</span>')
+        lab.set_use_markup(True)
+        self.nsLegend.pack_start(lab, expand=False)
+
+        self.tab = gtk.Table(2,14)
+        self.row=0
+        self.allstats(self.statsrow)
+        self.nsLegend.pack_start(self.tab, expand=False)
+
         self.redraw()
         self.window.show_all()
 
-    def statsrow(self,tab,text,time):
-        tab.attach(gtk.Label(text), 0, 1, self.row, self.row+1)
-        tab.attach(gtk.Label(' %.1f%s' % unitify(time)), 1, 2, self.row, self.row+1)
+    def statsrow(self,text,time):
+        lab=gtk.Label(text)
+        lab.set_alignment(1,.5)
+        lab.set_selectable(True)
+        self.tab.attach(lab, 0, 1, self.row, self.row+1, xoptions=gtk.FILL)
+        val=gtk.Label(' %.1f%s' % unitify(time))
+        val.set_selectable(True)
+        val.set_alignment(0,.5)
+        self.tab.attach(val, 1, 2, self.row, self.row+1, xoptions=gtk.FILL)
         self.row+=1
 
-    def stats(self, ev):
-        win = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        win.set_title('Stats')
-        win.set_keep_above(True)
-        tab = gtk.Table(2,14)
-        win.add(tab)
-        self.row=0
-        self.statsrow(tab,'Wall time:',self.wallend-self.wallstart)
-        self.statsrow(tab,'Total time:',self.root.time)
-        self.statsrow(tab,'In understood functions:',self.infn)
-        self.statsrow(tab,'Running but not sampled:',self.inrunns)
-        self.statsrow(tab,'In blocking I/O:',self.inbio)
-        self.statsrow(tab,'Waiting on other path:',self.inas)
-        self.statsrow(tab,'Waits that timed out:',self.intimeout)
-        self.statsrow(tab,'Waits "for" hardware:',self.inhardware)
-        self.statsrow(tab,'Involuntary sleeps:',self.involuntary)
-        self.statsrow(tab,'Miscellaneous kernel blocks:',self.misckern)
-        self.statsrow(tab,'Scheduler overhead:',self.overhead)
-        self.statsrow(tab,'Double counted (early starts):',self.dblcnt)
+    def allstats(self, callback):
+        callback('Wall time:',self.wallend-self.wallstart)
+        callback('Total time:',self.root.time)
+        callback('In understood functions:',self.infn)
+        callback('Running but not sampled:',self.inrunns)
+        callback('In blocking I/O:',self.inbio)
+        callback('Waiting on other path:',self.inas)
+        callback('Waits that timed out:',self.intimeout)
+        callback('Waits "for" hardware:',self.inhardware)
+        callback('Involuntary sleeps:',self.involuntary)
+        callback('Miscellaneous kernel blocks:',self.misckern)
+        callback('Scheduler overhead:',self.overhead)
+        callback('Double counted (early starts):',self.dblcnt)
         total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead - self.dblcnt
-        self.statsrow(tab,'Total Accounted:',total)
-        self.statsrow(tab,'Unaccounted:',self.root.time - total)
-        win.show_all()
+        callback('Total Accounted:',total)
+        callback('Unaccounted:',self.root.time - total)
+
+
+    def stats_part_2(self, widget, entry):
+        fn = entry.get_text()
+        entry.get_parent().get_parent().destroy()
+        f=file(fn,'w')
+        f.write('Category\ttime\n')
+        self.allstats(lambda text,time: f.write('%s\t%.9f\n'%(text,time)))
+        f.close()
 
     def put_stack(self, node, stack, dur, typ):
         for frame in reversed(stack):

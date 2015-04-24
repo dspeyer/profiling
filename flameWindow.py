@@ -68,6 +68,8 @@ class FlameWindow(AppWindow):
         self.toolbar.add(cons)
         cons.connect('clicked', self.launchConsolidatedWindow)
 
+        self.flame_or_consolidated_legend('flame')
+
         self.redraw()
         self.window.show_all()
 
