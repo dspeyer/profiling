@@ -11,7 +11,7 @@ grace=1e-3
 
 class FlameWindow(AppWindow):
     def __init__(self, data, target, fn):
-        AppWindow.__init__(self, data.runs[target][0].start, data.runs[target][-1].end)
+        AppWindow.__init__(self, data.runs[target][0].start, data.runs[target][-1].end, fn)
         self.starttimelabels=data.starttime
         self.endtimelabels=data.endtime
         self.window.set_title('Flameview: %s [%s]'%(target,fn))
@@ -20,7 +20,6 @@ class FlameWindow(AppWindow):
         self.data=data
         self.boxes=data.boxes
         self.links=data.links
-        self.fn=fn
 
         self.rectmargin=2
 

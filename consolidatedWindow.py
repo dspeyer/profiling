@@ -23,10 +23,11 @@ def unitify(t):
 
 class ConsolidatedWindow(AppWindow):
     def __init__(self, data, cps, flameId, target, fn):
-        AppWindow.__init__(self, 0, 1) # We'll reset these later
+        AppWindow.__init__(self, 0, 1, fn) # We'll reset these later
         self.window.set_title('Consolidated Flame View: %s [%s]' % (target,fn))
         self.data = data
         self.flameId=flameId
+        self.target=target
         self.wallstart=float('inf')
         self.wallend=float('-inf')
         self.rowheight=20
@@ -56,7 +57,7 @@ class ConsolidatedWindow(AppWindow):
         self.endtime = self.root.time
 
         ss=gtk.Button('Save Stats')
-        ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2)
+        ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2, 'txt')
         self.toolbar.add(ss)
 
         self.rectmargin = 2

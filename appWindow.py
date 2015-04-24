@@ -5,7 +5,7 @@ import pango
 import math
 
 class AppWindow:
-    def __init__(self, starttime, endtime):
+    def __init__(self, starttime, endtime, fn):
 
         self.start_expose_event=1
         self.finish_expose_event=1
@@ -14,6 +14,7 @@ class AppWindow:
         self.endtime=endtime
         self.starttimelabels=starttime
         self.endtimelabels=endtime
+        self.fn=fn
 
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_default_size(800,600)
@@ -33,7 +34,7 @@ class AppWindow:
         rt=gtk.ToggleButton('Raw Times')
         rt.connect('clicked', self.toggle_raw_times)
         save=gtk.Button('Save as Image')
-        save.connect('clicked', self.get_filename_and_callback, self.save_part2)
+        save.connect('clicked', self.get_filename_and_callback, self.save_part2, 'png')
 
         vscroll = gtk.ScrolledWindow()
         vscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
@@ -254,12 +255,18 @@ class AppWindow:
         self.pixmap.draw_line(gc, x1, y1, x2, y2)
 
 
-    def get_filename_and_callback(self, widget, callback):
+    def get_filename_and_callback(self, widget, callback, extension):
         window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         vb=gtk.VBox()
         window.add(vb)
         vb.add(gtk.Label('Filename:'))
+        suggestion = self.fn.split('.')[0]
+        suggestion += '_' + self.__class__.__name__
+        if 'target' in self.__dict__:
+            suggestion += '_' + self.target
+        suggestion+='.'+extension
         entry=gtk.Entry()
+        entry.set_text(suggestion)
         vb.add(entry)
         button=gtk.Button('Save')
         button.connect('clicked', callback, entry)
@@ -280,7 +287,7 @@ class AppWindow:
                 self.redraw_time()
                 pb.get_from_drawable(self.timingpixmap, cmap, 0, 0, self.offset, self.height, min(self.pmwidth,self.width-self.offset), self.rowheight)
                 self.offset += self.pmwidth
-            pb.save(fn+'.png', 'png')
+            pb.save(fn, 'png')
             self.offset=oldoffset
             self.redraw()
             self.redraw_time()

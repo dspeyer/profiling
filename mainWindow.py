@@ -10,7 +10,7 @@ from parse import struct
 
 class MainWindow(AppWindow):
     def __init__(self, data, fn):
-        AppWindow.__init__(self, data.starttime, data.endtime)
+        AppWindow.__init__(self, data.starttime, data.endtime, fn)
         self.window.connect("delete_event",gtk.main_quit)
         self.window.connect("destroy_event",gtk.main_quit)
         self.window.set_title('Runs and Links View [%s]' % fn)
@@ -18,7 +18,6 @@ class MainWindow(AppWindow):
         self.data=data
         self.boxes=data.boxes
         self.links=data.links
-        self.fn=fn
 
         self.show_sleeps=False
         ts=gtk.ToggleButton('Show Sleeps')
