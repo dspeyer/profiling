@@ -325,7 +325,7 @@ class FlameWindow(AppWindow):
             if 'stacks' in run.__dict__ and run.stacks:
                 return max([len(i) for i in run.stacks])+1
             else:
-                return 1
+                return 2
 
 
     def drawStack(self, base, stack, color, x1, x2, startY):
