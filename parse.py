@@ -127,6 +127,8 @@ def parse(fn):
     activenet={}
     justreceived={}
 
+    lastlibc={}
+
     for ev in evs:
         if ev.event=='sched:sched_switch':
             oldp='%s(%s)'%(ev.args.prev_comm,ev.args.prev_pid)
@@ -169,6 +171,11 @@ def parse(fn):
                 print "ERROR: %s switched out twice (%f and %f)"%(oldp,ev.time,switchedout[oldp])
             else:
                 switchedout[oldp]=ev.time
+                if ev.stack[-1].function=='[unknown]' and ev.stack[-1].file=='[unknown]':
+                    ev.stack=ev.stack[:-1]
+                if oldp in lastlibc:
+                    if ev.stack[-1].function==lastlibc[oldp].function and ev.stack[-1].file=='/lib/x86_64-linux-gnu/libc-2.19.so':
+                        ev.stack += lastlibc[oldp].stack
                 switchedoutstack[oldp]=ev.stack
             if newp in wokenbyinterrupt and sleeps[newp]:
                 sleeps[newp][-1].interrupt = wokenbyinterrupt[newp]
@@ -370,6 +377,10 @@ def parse(fn):
                 continue
             activenet[dev].end=ev.time
             justreceived[proc]=activenet[dev]
+        elif ev.event[:11]=='probe_libc:':
+            proc='%s(%s)'%(ev.comm,ev.pid)
+            fn=ev.event[11:]
+            lastlibc[proc]=struct(function=fn, stack=ev.stack,time=ev.time)
         else:
             print 'ERROR: unhandled event "%s"'%ev.event
 
