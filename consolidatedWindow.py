@@ -9,7 +9,7 @@ from appWindow import AppWindow
 from parse import struct
 
 def treeNode():
-    return struct(time=0, type='', children=defaultdict(treeNode), async=[])
+    return struct(time=0, type='', children=defaultdict(treeNode), async=[], extra=0, parent=None)
 
 def unitify(t):
     if t>1:
@@ -46,11 +46,15 @@ class ConsolidatedWindow(AppWindow):
         self.root.type='root'
         for cp in cps:
             for run in cp:
-                self.root.time += run.end - run.start
+                if 'cutstart' in run.wdata[self.flameId].__dict__:
+                    start=run.wdata[self.flameId].cutstart
+                else:
+                    start=run.start
+                self.root.time += run.end - start
                 if run.end>self.wallend:
                     self.wallend=run.end
-                if run.start<self.wallstart:
-                    self.wallstart=run.start
+                if start<self.wallstart:
+                    self.wallstart=start
                 self.accumulate(self.root, run, 1)
         self.addEmpty(self.root)
         self.height=self.lheight * self.rowheight
@@ -115,7 +119,9 @@ class ConsolidatedWindow(AppWindow):
 
     def put_stack(self, node, stack, dur, typ):
         for frame in reversed(stack):
-            node=node.children[frame.function]
+            newnode=node.children[frame.function]
+            newnode.parent=node
+            node=newnode
             node.time += dur
             if node.type=='':
                 node.type=typ
@@ -137,9 +143,20 @@ class ConsolidatedWindow(AppWindow):
             start=box.wdata[self.flameId].cutstart
         else:
             start=box.start
-        if box.wdata[self.flameId].parent and start<box.wdata[self.flameId].parent.start:
-            self.dblcnt +=  box.wdata[self.flameId].parent.start - start
-        node = node.children[self.get_text(box)]
+        if box.wdata[self.flameId].parent:
+            extra=0
+            if start<box.wdata[self.flameId].parent.start:
+                extra +=  box.wdata[self.flameId].parent.start - start
+            if box.end>box.wdata[self.flameId].parent.end:
+                extra  +=  box.end - box.wdata[self.flameId].parent.end
+            self.dblcnt += extra
+            par=node
+            while par:
+                par.extra+=extra
+                par=par.parent
+        newnode = node.children[self.get_text(box)]
+        newnode.parent=node
+        node=newnode
         topframe = node
         if box.type in ['bio', 'queue']:
             node.type=box.type
@@ -229,9 +246,11 @@ class ConsolidatedWindow(AppWindow):
         for childname in reversed(children):
             child=node.children[childname]
             t2 = t1 +  child.time
+            if h==2:
+                print 'drawing %s of %s from %f to %f with %f extra' % (child.type, childname, t1, t2, child.extra)
             self.draw_rectangle(self.gcByType[child.type], t1, t2, self.physFromLogY(h), childname)
             self.draw_children(child, h+1, t1)
-            t1 = t2
+            t1 = t2 + child.extra
     
     def physFromLogY(self, logY):
         return  (self.lheight-logY-1)*self.rowheight
