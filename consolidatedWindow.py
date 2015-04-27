@@ -93,7 +93,7 @@ class ConsolidatedWindow(AppWindow):
 
     def allstats(self, callback):
         callback('Wall time:',self.wallend-self.wallstart)
-        callback('Total time:',self.root.time)
+        callback('Total time:',self.root.time+self.dblcnt)
         callback('In understood functions:',self.infn)
         callback('Running but not sampled:',self.inrunns)
         callback('In blocking I/O:',self.inbio)
@@ -103,10 +103,9 @@ class ConsolidatedWindow(AppWindow):
         callback('Involuntary sleeps:',self.involuntary)
         callback('Miscellaneous kernel blocks:',self.misckern)
         callback('Scheduler overhead:',self.overhead)
-        callback('Double counted (early starts):',self.dblcnt)
-        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead - self.dblcnt
+        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead
         callback('Total Accounted:',total)
-        callback('Unaccounted:',self.root.time - total)
+        callback('Unaccounted:',self.root.time + self.dblcnt - total)
 
 
     def stats_part_2(self, widget, entry):
@@ -217,7 +216,7 @@ class ConsolidatedWindow(AppWindow):
         for child in children:
             node.children[''].time -= node.children[child].time
         for async in node.async:
-            print 'making async'
+            #print 'making async'
             astime = min(async.aschild.end - async.aschild.start, async.maxtime)
             if node.children[''].time > astime:
                 node.children[''].time -= astime
@@ -246,8 +245,8 @@ class ConsolidatedWindow(AppWindow):
         for childname in reversed(children):
             child=node.children[childname]
             t2 = t1 +  child.time
-            if h==2:
-                print 'drawing %s of %s from %f to %f with %f extra' % (child.type, childname, t1, t2, child.extra)
+            #if h==2:
+                #print 'drawing %s of %s from %f to %f with %f extra' % (child.type, childname, t1, t2, child.extra)
             self.draw_rectangle(self.gcByType[child.type], t1, t2, self.physFromLogY(h), childname)
             self.draw_children(child, h+1, t1)
             t1 = t2 + child.extra
