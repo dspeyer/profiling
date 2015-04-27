@@ -35,6 +35,7 @@ class ConsolidatedWindow(AppWindow):
         self.infn=0
         self.inrunns=0
         self.inbio=0
+        self.inqueue=0
         self.inas=0
         self.intimeout=0
         self.inhardware=0
@@ -58,7 +59,7 @@ class ConsolidatedWindow(AppWindow):
                 self.accumulate(self.root, run, 1)
         self.addEmpty(self.root)
         self.height=self.lheight * self.rowheight
-        self.endtime = self.root.time
+        self.endtime = self.root.time+self.root.extra
 
         ss=gtk.Button('Save Stats')
         ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2, 'txt')
@@ -72,7 +73,7 @@ class ConsolidatedWindow(AppWindow):
         lab.set_use_markup(True)
         self.nsLegend.pack_start(lab, expand=False)
 
-        self.tab = gtk.Table(2,14)
+        self.tab = gtk.Table(2,15)
         self.row=0
         self.allstats(self.statsrow)
         self.nsLegend.pack_start(self.tab, expand=False)
@@ -93,19 +94,20 @@ class ConsolidatedWindow(AppWindow):
 
     def allstats(self, callback):
         callback('Wall time:',self.wallend-self.wallstart)
-        callback('Total time:',self.root.time+self.dblcnt)
+        callback('Total time:',self.root.time+self.root.extra)
         callback('In understood functions:',self.infn)
         callback('Running but not sampled:',self.inrunns)
         callback('In blocking I/O:',self.inbio)
+        callback('I/O queue overhead:',self.inqueue)
         callback('Waiting on other path:',self.inas)
         callback('Waits that timed out:',self.intimeout)
         callback('Waits "for" hardware:',self.inhardware)
         callback('Involuntary sleeps:',self.involuntary)
         callback('Miscellaneous kernel blocks:',self.misckern)
         callback('Scheduler overhead:',self.overhead)
-        total=self.infn + self.inrunns + self.inbio + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead
+        total=self.infn + self.inrunns + self.inbio + self.inqueue + self.inas + self.intimeout + self.inhardware + self.involuntary + self.misckern + self.overhead
         callback('Total Accounted:',total)
-        callback('Unaccounted:',self.root.time + self.dblcnt - total)
+        callback('Unaccounted:',self.root.time + self.root.extra - total)
 
 
     def stats_part_2(self, widget, entry):
@@ -144,11 +146,13 @@ class ConsolidatedWindow(AppWindow):
             start=box.start
         if box.wdata[self.flameId].parent:
             extra=0
-            if start<box.wdata[self.flameId].parent.start:
-                extra +=  box.wdata[self.flameId].parent.start - start
+            if start<self.de_facto_start(box.wdata[self.flameId].parent):
+                extra +=  self.de_facto_start(box.wdata[self.flameId].parent) - start
             if box.end>box.wdata[self.flameId].parent.end:
                 extra  +=  box.end - box.wdata[self.flameId].parent.end
-            self.dblcnt += extra
+            #self.dblcnt += extra
+            if extra>0.1:
+                print 'found extra of %f in %s %f-%f at height %d'%(extra,box.proc,start,box.end,h)
             par=node
             while par:
                 par.extra+=extra
@@ -159,7 +163,10 @@ class ConsolidatedWindow(AppWindow):
         topframe = node
         if box.type in ['bio', 'queue']:
             node.type=box.type
-            self.inbio += box.end-start
+            if box.type=='bio':
+                self.inbio += box.end-start
+            elif 'children' not in box.wdata[self.flameId].__dict__:
+                self.inqueue += box.end-start
         else:
             node.type='proc'
         node.time += box.end-start
@@ -195,6 +202,7 @@ class ConsolidatedWindow(AppWindow):
             node.type='interrupt'
             node.time+=time
             if box.interrupt=='timeout':
+                print "timeout is %s %f-%f"%(box.proc,box.start,box.end)
                 self.intimeout+=time
             else:
                 self.inhardware+=time

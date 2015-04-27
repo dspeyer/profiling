@@ -29,8 +29,10 @@ class FlameWindow(AppWindow):
         self.roots=defaultdict(lambda:[])
         self.pseudolinks=[]
         self.maxcp=0
+        self.procsSeen={}
         for r in data.runs[target]:
             self.rtag(r,None)
+        print "Seen %d procs"%len(self.procsSeen)
         for box in self.roots[-1]:
             self.setCPs(box)
         del self.roots[-1]
@@ -211,26 +213,6 @@ class FlameWindow(AppWindow):
             if end > frame.start:
                 self.draw_rectangle(self.gcByType[frame.typ], frame.start, end, y, frame.text, frame.is_instant)
 
-    def de_facto_start(self, sleep):
-        try:
-            prevrun=sleep.prev
-            prevsleep=prevrun.prev
-            if prevrun.end-prevrun.start > 1e-4:
-                return sleep.start
-            if prevsleep.stack != sleep.stack:
-                return sleep.start
-            is_timeouty_wait=False
-            for frame in sleep.stack:
-                if frame.function=='poll_schedule_timeout':
-                    is_timeouty_wait=True
-                    break
-            if not is_timeouty_wait:
-                return sleep.start
-            if 'inlink' in prevrun.__dict__:
-                return sleep.start
-            return self.de_facto_start(prevsleep)
-        except AttributeError as e:
-            return sleep.start            
 
     def rtag(self, box, parent, stack=[], cpSameAs=None):
         if box.end < self.starttime:
@@ -238,6 +220,8 @@ class FlameWindow(AppWindow):
         d=box.wdata[self.id]
         if 'cpSameAs' in d.__dict__:
             return
+        if box.type=='run':
+            self.procsSeen[box.proc]=1
         isNewCp=False
         if box.proc==self.target:
             d.cpSameAs=None
@@ -260,6 +244,7 @@ class FlameWindow(AppWindow):
             d.wouldParent=parent
         else:
             d.parent=parent
+            self.clear_preceding_timeouts(parent, box.start)
             if 'children' not in parent.wdata[self.id].__dict__:
                 parent.wdata[self.id].children=[]
             parent.wdata[self.id].children.append(box)

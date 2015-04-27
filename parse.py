@@ -62,7 +62,7 @@ def parse(fn):
                 else:
                     ev.oldcomm='unknown(%d)'%ev.pid
             elif ev.pid in commbypid:
-                if (commbypid[ev.pid]!=ev.comm and ev.pid!=0):
+                if (commbypid[ev.pid]!=ev.comm and ev.pid!=0 and ev.comm!='kthreadd'): #DO NOT SUBMIT
                     fake_ev=struct()
                     fake_ev.comm=ev.comm
                     fake_ev.pid=ev.pid
@@ -147,7 +147,7 @@ def parse(fn):
                         runs[oldp][-1].stacks=[]
                     switchedin[oldp]=-1
             else:
-                runs[oldp].append(struct(start=starttime, end=ev.time))
+                runs[oldp].append(struct(start=starttime, end=ev.time, stacks=[]))
                 switchedin[oldp]=-1
             if oldp in runningstacks:
                 del runningstacks[oldp]
@@ -195,8 +195,6 @@ def parse(fn):
                         inlink.end=inlink.start
                     runs[oldp][-1].inlink=inlink
                 inlinks[oldp]=[]
-            if ev.time==16533.094640:
-                print 'outlinkcnt[%s]=%d' % (oldp,len(outlinks[oldp]))
             if outlinks[oldp]:
                 for outlink in outlinks[oldp]:
                     outlink.outtime=ev.time
@@ -302,6 +300,10 @@ def parse(fn):
                     i+=1
                 proc='%s/%d'%(dev,i)
             activedevs[proc]=1
+            if dev+'/'+offset in activebios:
+                if 'end' not in activebios[dev+'/'+offset].__dict__:
+                    activebios[dev+'/'+offset].end=ev.time
+                bios.append(activebios[dev+'/'+offset])
             activebios[dev+'/'+offset]=struct(proc=proc, start=ev.time, repframe='%s of %s blocks at %s'%(typ,size,offset), type='queue', behalfof=callerproc, iotype=typ,dev=dev)
             links.append(struct(start=ev.time, end=ev.time, source=callerproc, target=proc, targetrun=activebios[dev+'/'+offset]))
             outlinks[callerproc].append(links[-1])
@@ -310,12 +312,12 @@ def parse(fn):
             offset=ev.args.raw[4]
             if dev+'/'+offset not in activebios:
                 print 'WARNING: io issue offset not matched at %f, trying 0...'%ev.time
-                offset='0'
-                if dev+'/'+offset not in activebios:
-                    print 'WARNING: stillunstarted io issue at %f'%ev.time
-                    continue
-                else:
-                    print "...ok"
+                #offset='0'
+                #if dev+'/'+offset not in activebios:
+                #    print 'WARNING: stillunstarted io issue at %f'%ev.time
+                continue
+                #else:
+                #    print "...ok"
             queue = activebios[dev+'/'+offset]
             queue.end=ev.time
             bios.append(queue)
@@ -342,10 +344,13 @@ def parse(fn):
                 continue
             run = activebios[dev+'/'+offset]
             run.end = ev.time
+            if run.type=='queue':
+                print 'WARNING: finishing unissued bio at %f'%ev.time
+                run.type='bio'
             lastfinishondev[dev]=run
-            bios.append(run)
-            del activebios[dev+'/'+offset]
-            del activedevs[run.proc]
+            #del activebios[dev+'/'+offset]
+            if run.proc in activedevs:
+                del activedevs[run.proc]
             lastfinishforproc[run.behalfof]=run
         elif ev.event=='irq:irq_handler_entry':
             proc='%s(%s)'%(ev.comm,ev.pid)
@@ -397,7 +402,8 @@ def parse(fn):
                 ol.outtime=endtime
 
     for cp in activebios:
-        activebios[cp].end=endtime
+        if 'end' not in activebios[cp].__dict__:
+            activebios[cp].end=endtime
         bios.append(activebios[cp])
 
     for sock in activenet:

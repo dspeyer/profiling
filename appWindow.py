@@ -344,4 +344,54 @@ class AppWindow:
             leg.pack_start(box, expand=False)
         self.nsLegend.show_all()
 
+
+    def de_facto_start(self, sleep):
+        try:
+            prevrun=sleep.prev
+            prevsleep=prevrun.prev
+            if prevrun.end-prevrun.start > 1e-4:
+                return sleep.start
+            if prevsleep.stack != sleep.stack:
+                return sleep.start
+            is_timeouty_wait=False
+            for frame in sleep.stack:
+                if frame.function=='poll_schedule_timeout':
+                    is_timeouty_wait=True
+                    break
+            if not is_timeouty_wait:
+                return sleep.start
+            if 'inlink' in prevrun.__dict__:
+                return sleep.start
+            return self.de_facto_start(prevsleep)
+        except AttributeError as e:
+            return sleep.start            
+
+
+    def clear_preceding_timeouts(self, sleep, start):
+        if start>sleep.end:
+            return
+        if 'interrupt' in sleep.__dict__ and sleep.interrupt=='timeout':
+            del sleep.interrupt
+        try:
+            prevrun=sleep.prev
+            prevsleep=prevrun.prev
+            if prevrun.end-prevrun.start > 1e-4:
+                return
+            if prevsleep.stack != sleep.stack:
+                return
+            is_timeouty_wait=False
+            for frame in sleep.stack:
+                if frame.function=='poll_schedule_timeout':
+                    is_timeouty_wait=True
+                    break
+            if not is_timeouty_wait:
+                return
+            if 'inlink' in prevrun.__dict__:
+                return
+            return self.clear_preceding_timeouts(prevsleep,start)
+        except AttributeError as e:
+            return
+
+
+
 AppWindow.id=0
