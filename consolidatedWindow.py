@@ -198,8 +198,10 @@ class ConsolidatedWindow(AppWindow):
                 self.intimeout+=time
             else:
                 self.inhardware+=time
-        elif 'async' in box.wdata[self.flameId].__dict__:
-            topframe.async.append(struct(aschild=box.wdata[self.flameId].async,maxtime=time))
+        elif 'asyncstart' in box.wdata[self.flameId].__dict__:
+            topframe.async.append(struct(aschild=box.wdata[self.flameId].asyncstart,maxtime=time))
+        elif 'asyncend' in box.wdata[self.flameId].__dict__:
+            topframe.async.append(struct(aschild=box.wdata[self.flameId].asyncend,maxtime=time))
         elif 'special' in box.__dict__:
             if box.special=='retint_careful':
                 self.involuntary += time
@@ -223,7 +225,7 @@ class ConsolidatedWindow(AppWindow):
             else:
                 astime = node.children[''].time
                 node.children[''].time = 0
-            asyncname = 'latter part of '+self.get_text(async.aschild)
+            asyncname = 'part of '+self.get_text(async.aschild)
             if astime>0:
                 node.children[asyncname].time+=astime
                 node.children[asyncname].type='async'

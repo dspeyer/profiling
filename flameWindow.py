@@ -117,6 +117,8 @@ class FlameWindow(AppWindow):
             if box.type in ['run', 'sleep']:
                 typ='proc'
                 text=box.proc
+                if 'wouldParent' in box.wdata[self.id].__dict__:
+                    text+= '('+box.wdata[self.id].wouldParent.proc+')'
             else:
                 typ=box.type
                 text=box.repframe+' on '+box.dev
@@ -165,14 +167,14 @@ class FlameWindow(AppWindow):
                 for frame in stack:
                     merged=self.put_frame(frame.function, cutstart, box.end, y, box.type, merged)
                     y-=self.rowheight
-            if 'async' in  box.wdata[self.id].__dict__:
-                st=max(cutstart, box.wdata[self.id].async.start)
-                end=min(box.end, box.wdata[self.id].async.end)
-                self.put_frame(box.wdata[self.id].async.proc+' (part)', st, end, y, 'async', struct(canon=False,tentative=False))
+            if 'asyncstart' in  box.wdata[self.id].__dict__:
+                self.put_frame(box.wdata[self.id].asyncstart.proc+' (end)', cutstart, min(box.end,box.wdata[self.id].asyncstart.end), y, 'async', merged)
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged, depth+1)
             elif 'interrupt' in box.__dict__:
                 self.put_frame(box.interrupt, box.start, box.end, y, 'interrupt', struct(canon=False,tentative=False), True)
+            if 'asyncend' in  box.wdata[self.id].__dict__:
+                self.put_frame(box.wdata[self.id].asyncend.proc+' (start)', box.wdata[self.id].asyncend.start, box.end, y, 'async', merged)
 
     def try_connect(self, frame, text, start, end, typ):
         if frame and text==frame.text and self.xfromt(start)-self.xfromt(frame.end)<5:
@@ -236,15 +238,26 @@ class FlameWindow(AppWindow):
         d=box.wdata[self.id]
         if 'cpSameAs' in d.__dict__:
             return
-        if not parent:
-            d.cpSameAs=cpSameAs
-            d.parent=None
-            self.roots[-1].append(box)
-        elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
-            parent.wdata[self.id].async=box
+        isNewCp=False
+        if box.proc==self.target:
             d.cpSameAs=None
             d.parent=None
             self.roots[-1].append(box)
+        elif not parent:
+            d.cpSameAs=cpSameAs
+            d.parent=None
+            self.roots[-1].append(box)
+            isNewCp=True
+        elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
+            if box.start+grace<self.de_facto_start(parent):
+                parent.wdata[self.id].asyncstart = box
+            else:
+                parent.wdata[self.id].asyncend = box
+            d.cpSameAs=cpSameAs
+            d.parent=None
+            self.roots[-1].append(box)
+            isNewCp=True
+            d.wouldParent=parent
         else:
             d.parent=parent
             if 'children' not in parent.wdata[self.id].__dict__:
@@ -258,11 +271,11 @@ class FlameWindow(AppWindow):
             return
         if 'inlink' in box.__dict__ and 'sourcerun' in box.inlink.__dict__:
             if 'horizontal' in box.inlink.__dict__:
-                self.rtag(box.inlink.sourcerun, d.parent, stack, box)
+                self.rtag(box.inlink.sourcerun, parent, stack, box)
             else:
                 for i in xrange(len(stack)):
                     if box.inlink.source==stack[i].proc:
-                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], stack[i].box)
+                            self.rtag(box.inlink.sourcerun, stack[i].par, stack[0:i], box if isNewCp else None)
                             if i!=len(stack)-1 and d.parent:
                                 d.parent.wdata[self.id].cutstart=box.start
                                 d.parent.wdata[self.id].cutDownTo=stack[i].proc
@@ -270,11 +283,11 @@ class FlameWindow(AppWindow):
                 if 'prev' in box.__dict__:
                     newstack=copy(stack)
                     newstack.append(struct(proc=box.proc, par=d.parent, box=box))
-                    self.rtag(box.inlink.sourcerun, box.prev, newstack, box.prev)
+                    self.rtag(box.inlink.sourcerun, box.prev, newstack, box if isNewCp else None)
                 else:
-                    self.rtag(box.inlink.sourcerun, d.parent, stack, box)
+                    self.rtag(box.inlink.sourcerun, parent, stack, box if isNewCp else None)
         if 'prev' in box.__dict__:
-            self.rtag(box.prev, d.parent, stack, box)
+            self.rtag(box.prev, parent, stack, box if isNewCp else None)
 
     def setCPs(self, box):
         if 'cp' in box.wdata[self.id].__dict__:
