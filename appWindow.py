@@ -320,10 +320,9 @@ class AppWindow:
                  ('device I/O', 'bio'),
                  ('device queue', 'queue'),
                  ('process or thread', 'proc'),
+                 ('waiting on other control path', 'async'),
                  ('interrupt', 'interrupt')];
-        if which=='consolidated':
-            entries.append(('waiting on other control path', 'async'))
-        else:
+        if which=='flame':
             entries.append(('caused to run', 'empty'))
             entries.append(('control path separator', 'empty'))                           
         for disp,name in entries:

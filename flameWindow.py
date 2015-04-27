@@ -165,6 +165,10 @@ class FlameWindow(AppWindow):
                 for frame in stack:
                     merged=self.put_frame(frame.function, cutstart, box.end, y, box.type, merged)
                     y-=self.rowheight
+            if 'async' in  box.wdata[self.id].__dict__:
+                st=max(cutstart, box.wdata[self.id].async.start)
+                end=min(box.end, box.wdata[self.id].async.end)
+                self.put_frame(box.wdata[self.id].async.proc+' (part)', st, end, y, 'async', struct(canon=False,tentative=False))
             if 'children' in box.wdata[self.id].__dict__:
                 self.mergeAndDrawBoxes(box.wdata[self.id].children, merged, depth+1)
             elif 'interrupt' in box.__dict__:
