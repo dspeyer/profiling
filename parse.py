@@ -94,7 +94,8 @@ def parse(fn):
             continue
         m=re.search(' *[0-9a-f]* (.*) \\((.*)\\)',line)
         if m and evs:
-            evs[-1].stack.append(struct(function=m.group(1),file=m.group(2)))
+            if m.group(1)!='[unknown]' or m.group(2)!='[unknown]':
+                evs[-1].stack.append(struct(function=m.group(1),file=m.group(2)))
         else:
             print 'ERROR: Could not parse "%s"'%line
 
