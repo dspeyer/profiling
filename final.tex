@@ -15,21 +15,66 @@
 \maketitle
 
 \begin{abstract}
-The first task in writing any performant code is to understand where it is spending its time. This allows programmers to apply optimizations where they will make a difference, and to not apply them where they won't. The standard tools for this are profilers, which measure where processes spend their time while running. However many processes spend most of their total wall time in actions not measured by traditional profilers. Here, we propose and implement a Recursive Systemic Profiler, a tool that can give a more complete view of the causes of an application’s performance in Linux system.
+
+Understanding how processes spend their time is no easy task: as systems
+increase their size and interact with other processes, it becomes more
+challenging to track them down. Gathering data is thus of crucial
+importance---the more of it there is, the bigger the potential to make better
+decisions.  This translates into performance optimizations, bug squashing, and
+even addressing issues that were previously unknown. The standard tools for
+gathering data about processes are profilers, which measure where processes
+spend their time while running. However, most profilers measure things like
+CPU, memory or system calls independently, but more often than not,
+optimizations are a combination of all these metrics. We propose and implement
+a Recursive Systemic Profiler, a tool that can intelligently interconnect
+different metrics and provide visualizations that give programmers a more
+complete view of their systems.
+
 \end{abstract}
 
 \section{Introduction}
-Even though premature optimization is the root of all evil, profiling the performance of a system is critical for its improvement. Profiling is, however, no small task: one has to know exactly where in the operating system to look for clues about program behavior, pick the appropriate tool out of several to collect information, and finally make sense of all the data that comes back.
+Even though premature optimization is the root of all evil, profiling the
+performance of a system is critical for its improvement. Profiling is, however,
+no small task: one has to know exactly where in the operating system to look for
+clues about program behavior, pick the appropriate tool out of several to collect
+information, and finally make sense of all the data that comes back.
 
-We know from experience that, most of the time, the slowness of systems doesn't come from the entire system as a whole but from very specific parts. As programmers, we want to be able to identify where exactly these parts are so that we can optimize only those parts and not waste time optimizing unimportant parts. We have identified three steps in order to profile programs so they can be optimized: reconnaissance, data collection and data interpretation. We describe each part next.
+We know from experience that, most of the time, the slowness of systems doesn't
+come from the entire system but from very specific parts. As programmers, we want
+to be able to identify where exactly these parts are so that we can optimize only
+those parts and not waste time optimizing unimportant parts. We have identified
+three steps in order to effectively profile programs: reconnaissance, data
+collection and data interpretation. We describe each part next.
 
-First, one needs to have an idea about where the slowness of their program is coming from: is the program spending a lot of time doing I/O? Are high levels of concurrency causing lock contention? Does the program depend on an external process to make progress? Depending on the kind of process being analyzed, this task can range from either being trivial or hard to identify.
+First, one needs to have an idea about where the slowness of their program is
+coming from: is it spending a lot of time doing I/O? Are high levels of
+concurrency causing lock contention? Does it depend on an external process to
+make progress? Based on the kind of process being analyzed, this task can range
+from either being trivial or hard to identify.
 
-Once one knows where the slowness is coming from, the next step is to collect data. A very typical but rudimentary way to achieve this would be to insert print statements throughout relevant parts of a program. This would allow us to get a sense for the parts of the code being executed, and, to a limited degree, to see if our program does what we think it does. However, we all know that this is often not reliable, especially for complex programs that interact with several other pieces. As systems grow and become more complex, it is becoming increasingly important to become familiar with specialized profiling tools that can aid in understanding these kinds of situations.
+Once one knows where the slowness is coming from, the next step is to collect
+data. A very typical but rudimentary way to achieve this would be to insert print
+statements throughout relevant parts of a program. This would allow us to get a
+sense for the parts of the code being executed, and to a limited degree, to see
+if our program does what we think it does. However, this is often not reliable,
+especially for programs that interact with several other pieces. This is where
+profilers come into play. There exist several of them for virtually every part of
+Linux systems: some are targeted only at some particular part of the system while
+others are more general and offer higher level information.
 
-Finally, once the relevant data has been gathered, one has to interpret it. This is sometimes not as trivial as it sounds because the data could come from many sources: the hardware, the kernel, user applications, etc. At first glance, these sources can be seemingly unrelated, however, when data is  presented by taking into account the notion of an interconnected system, it could tell an entirely different story.
+Finally, once the relevant data has been gathered, one has to interpret it. This
+is sometimes not as trivial as it sounds because the data could come from many
+sources: the hardware, the kernel, user applications, etc. At first glance, these
+sources can be seemingly unrelated, however, when data is  presented by taking
+into account the notion of an interconnected system, it could tell an entirely
+different story.
 
-We present the Recursive Systemic Profiler (RSP), a tool that makes it easy to profile and visualize the behavior of programs. RSP is aimed at programmers wishing to understand how programs spend their time and how they interoperate with other programs as well as with various parts of the operating system. This allows programmers to quickly answer questions like: Why is this process slow? What is it waiting on? How can I improve it?
+We present the Recursive Systemic Profiler (RSP), a tool that makes it easy to
+profile and visualize the behavior of programs. RSP is aimed at programmers
+wishing to understand how programs spend their time and how they interoperate
+with other programs as well as with various parts of the operating system. This
+allows programmers to quickly answer questions like: Why is this process slow?
+What is it waiting on? How can I improve it?
 
 \section{Motivating Examples}
 
