@@ -279,18 +279,18 @@ to be notified of, or the duration of the profiling.
 
 One of the key characteristics of flame graphs is that they present their
 information in a hierarchical, stack-like manner, in such a way that one can
-easily tell which stacks frames were triggered by which other stacks frames,
+tell which stacks frames were triggered by which other stacks frames,
 making it easy to see what's going on once one gets accustomed to the format.
 
 Flame graphs also have the characteristic of being able to show at a glance
-overall slow hot-spots (represented by the width of the function calls in the
+slow hot-spots (represented by the width of the function calls in the
 stacks) and overall program structure.
 
 We drew our attention to three kinds of Flame Graphs: On-CPU\cite{oncpu},
 Off-CPU\cite{offcpu} and Hot/Cold Graphs\cite{hotcold}.
-Figure~\ref{fig:flamegraph} shows examples of these three kind of flame graphs.
+Figure~\ref{fig:flamegraph} shows examples of each one.
 
-On-CPU flame graphs are the ones that show a process and its threads spending
+On-CPU flame graphs are the ones that show how a process and its threads spend
 time running on CPU.
 
 Conversely, Off-CPU flame graphs are the ones that show how a process waits.
@@ -300,11 +300,11 @@ require tracing and interpretation of wake up events.
 The combination of those two is what's known as a Hot/Cold flame graph. This
 shows a more complete view because it displays what was happening at the time
 when the process was running as well as when it was waiting. Despite this, the
-combination of on and off CPU flame graphs can confusing to interpret because
+combination of on and off CPU flame graphs can be challenging to visualize because
 the sum of all threads sleeping is usually a lot bigger than the time spent
 doing work, therefore, as Figure~\ref{fig:1c}, the On-CPU part can get very
-narrow---but this could probably be addressed with zooming capabilities (which
-is the approach RSP takes).
+narrow. This problem could be addressed with zooming capabilities, which
+is the approach RSP takes.
 
 \subsubsection{TraceCompass}
 
@@ -319,9 +319,9 @@ collector and leverages the Eclipse framework to create a full-fledged data
 visualizer. Once lttng data has been collected, one can start visualizing it in
 an interactive manner.
 
-It is worth nothing that TraceCompass offers some a dizzying array of options
-and functionalities. But for the sake of our research, we focus on what makes
-it similar to RSP (which turns out to be the core of the program).
+It is worth nothing that TraceCompass offers a dizzying array of options
+and functionalities. For the sake of our research, we focus on what makes
+it similar to RSP (which turns out to be the core of TraceCompass).
 
 Figure~\ref{fig:traceCompass} shows TraceCompass' three main components: A
 Control Flow window (top left) presented in a collapsable tree structure that
@@ -329,17 +329,17 @@ makes it easy to see parent-child relationships that were part of the trace. A
 Visualization window (top right), which is attached to the Control Flow window
 and where one can visualize processes (represented as blocks whose length are a
 function of the time the process ran) and their transitions. And a scrollable
-Events window (bottom), where all raw event samples are displayed in a
+Events window (bottom), where all raw event samples are displayed in
 chronological order using a tabular format that is filterable on columns like
-the timestamp, the event name or the contents (like function arguments or
-return values in the case of a system call) of the event that were recorded.
+the timestamp, the event name or the contents of the event (like function
+arguments or return values in the case of a system call) that were recorded.
 
-In addition to this, TraceCompass also offers a statistics view for seeing the
-counters or percentage distribution of various events that happened during trace.
+In addition to this, TraceCompass offers a statistics view for seeing the
+counters or percentage distributions of various events that happened during trace.
 
 TraceCompass suffers from the drawbacks of other visualizers. First, it is not
-able to smartly connect data very well. For example, if a process gets blocked
-on a mutex, that process and the provider of the mutex won’t be connected.
+able to smartly connect data. For example, if a process gets blocked
+on a mutex, that process and the provider of the mutex will not be connected.
 Second, since application stack frames are not present in the visualization
 itself, it is rather hard to interpret, as one has to go back and forth between
 the three windows to make sense of the information. Finally, since events in
@@ -349,9 +349,21 @@ events interfere.
 
 \section{Recursive Systemic Profiler}
 
-The Recursive Systemic Profiler is designed to measure all the activities that contribute to the running time of a program.  It is ``systemic'' in that it records everything that takes place on the system and ``recursive'' in that it starts from a process of interest, then considers processes that was waiting for, and processes those were waiting for, and so on.
+The Recursive Systemic Profiler addresses most of the drawbacks of FlameGraphs
+and TraceCompass. Its primary feature is that it is designed to measure all the
+activities that contribute to the running time of a program, but most
+importantly, it is able to make sense of the data and connect it in an
+intelligent way. It is ``systemic'' in that it records everything that takes
+place on the system and ``recursive'' in that it starts from a process of
+interest, then considers processes that was waiting for, and processes those
+were waiting for, and so on.
 
-The building blocks the profiler works with are runs, sleeps, links and samples.  A run is a contiguous block of time during which a process is running.  A sleep is a similar block in which the process is not running.  A link marks one run causing another.  And a sample is taken by the sampling profiler.  Each sample is part of a run, but very short runs may not have any samples.
+The building blocks the profiler works with are runs, sleeps, links and
+samples.  A run is a contiguous block of time during which a process is
+running.  A sleep is a similar block in which the process is not running.  A
+link marks one run causing another.  And a sample is taken by the sampling
+profiler.  Each sample is part of a run, but very short runs may not have any
+samples.
 
 \subsection{Pseudo-stacks and Control Paths}
 
