@@ -509,8 +509,8 @@ In the flamegraphs, adjacent stack elements are unified so long as there is noth
 \section{Evalutation}
 
 \begin{figure*}[t]
-\begin{tabular}{r|C{1in}cccc}
-Category & squirrelmail & xterm launch & spatialtable & make & mplayer\\
+\begin{tabular}{r|C{.77in}C{.8in}C{.77in}C{.77in}C{.77in}}
+Category & Squirrelmail & xterm launch & spatialtable & make & MPlayer\\
 Processes & 18 & 13 & 133 & 12 & 17\\
 \hline
 Wall time & 265 & 315 & 74 & 4438 & 2180\\
@@ -541,9 +541,9 @@ The ultimate test of a performance tool is how much it can explain.  We calculat
 
 We have five test cases, inspired by the five motivating examples from the beginning of the paper.
 
-\subsubsection{squirrelmail}
+\subsubsection{Squirrelmail}
 
-Squirrelmail\cite{squirrelmail} is a popular, open-source webmail system.  It does not contain its own mail handling, but instead translates the end user's HTTP requests into IMAP requests to a separate server, and similarly translates the responses into HTML.  Any request to Squirrelmail will, at minimum, require activity from the browser, web server and IMAP server, and any attempt to identify performance issues will need to reach across these.
+Squirrelmail\cite{Squirrelmail} is a popular, open-source webmail system.  It does not contain its own mail handling, but instead translates the end user's HTTP requests into IMAP requests to a separate server, and similarly translates the responses into HTML.  Any request to Squirrelmail will, at minimum, require activity from the browser, web server and IMAP server, and any attempt to identify performance issues will need to reach across these.
 
 \subsubsection{xterm launch}
 
@@ -563,9 +563,9 @@ As an example of a distributed database, we used SpatialTable\cite{spatialtable}
 
 We ran make for a protobuf object file.\cite{pb}  First it invoked protoc to create the h and cpp files, then g++ to turn those into a .o file.  We cleared Linux's file cache before running make to ensure a reasonable mix of cpu and disk.
 
-\subsubsection{mplayer}
+\subsubsection{MPlayer}
 
-For video playback, we used mplayer to render a few seconds of a 720x408 AVI file with DivX 5 video and MP3 audio.  We ran in windowed mode and manually stopped the playback after a few seconds.
+For video playback, we used MPlayer to render a few seconds of a 720x408 AVI file with DivX 5 video and MP3 audio.  We ran in windowed mode and manually stopped the playback after a few seconds.
 
 \subsection{Categories}
 
@@ -632,7 +632,7 @@ If this ever accounted for a large fraction of total time, it would suggest anot
 
 These are waits that ended in timeout.  They can represent failed asynchronous operations, sleep statements, or other things.
 
-In the Mplayer test case, they account for a large fraction of time.  More than half of this is mplayer waiting until the correct time to display the next frame.
+In the MPlayer test case, they account for a large fraction of time.  More than half of this is MPlayer waiting until the correct time to display the next frame.
 
 \subsubsection{Waiting on other path}
 
@@ -654,7 +654,7 @@ Fixing the problem required only twenty lines of code, which took a few hours to
 
 The curl maintainers rejected the patch because it isn't compatible with Microsoft Windows, but at least their attention has been drawn to the problem.
 
-\subsubsection{squirrelmail}
+\subsubsection{Squirrelmail}
 
 Naively, one might think Squirrelmail's chain of operations was ``browser sends tcp to web server forks php interpreter sends tcp to imap server returns data''.  In fact, the php interpreter is built into apache (at least in our configuration) and the imap server (dovecot) is rather more complex.  It calls to two other programs: imap and imap-login, the latter of which calls a program called ``auth''.
 
@@ -739,9 +739,9 @@ All our code is available at https://github.com/dspeyer/profiling
   \emph{TraceCompass User Guide}
   http://archive.eclipse.org/tracecompass/doc/stable/org.eclipse.tracecompass.doc.user/User-Guide.html
 
-\bibitem{squirrelmail}
+\bibitem{Squirrelmail}
   \emph{Squirrelmail Documentation},
-  http://squirrelmail.org/documentation/
+  http://Squirrelmail.org/documentation/
 
 \bibitem{spatialtable}
   Speyer, Lee and Hu.
@@ -783,7 +783,7 @@ All our code is available at https://github.com/dspeyer/profiling
 
 \begin{figure}[p]
 \includegraphics[width=6.5in]{images/squirrelbest}
-\caption{The complete squirrelmail flamegraph}
+\caption{The complete Squirrelmail flamegraph}
 \label{fig:sq}
 \end{figure}
 
