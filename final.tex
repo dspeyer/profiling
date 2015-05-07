@@ -26,7 +26,7 @@ gathering data about processes are profilers, which measure where processes
 spend their time while running. However, most profilers measure things like
 CPU, memory or system calls independently, but more often than not,
 optimizations are a combination of all these metrics. We propose and implement
-a Recursive Systemic Profiler, a tool that can intelligently interconnect
+a Recursive Systemic Profiler (RSP) a tool that can intelligently interconnect
 different metrics and provide visualizations that give programmers a more
 complete view of their systems.
 
@@ -144,17 +144,80 @@ after a predefined number of occurrences of some event.
 
 \subsection{Current Tools}
 
-There are a variety of open source tools within these categories for collecting data in Linux-based operating systems. They vary in functionality and mode of use depending on, for example, the part of the operating system the user is interested in analyzing or the level of data granularity desired. Some examples of these tools include \begin{tt}perf\end{tt} for system-wide profiling, \begin{tt}strace\end{tt} for system call profiling or \begin{tt}netstat\end{tt} for network profiling.
+There are a variety of open source tools within these categories for collecting
+data in Linux-based operating systems. They vary in functionality and mode of
+use depending on the part of the operating system the user is interested in
+analyzing or the level of data granularity desired. Some examples of these
+tools include \begin{tt}perf\end{tt} for system-wide profiling,
+\begin{tt}strace\end{tt} for system call profiling or \begin{tt}netstat\end{tt}
+for network profiling.
 
-When we started to ponder ideas for how to gather data to create RSP, one of the first questions that arose was the one about data gathering: could we simply create our custom tool or should we use something that's already available? After researching the profiling landscape for 10 minutes, we found out that data collection was a really challenging task, so we instead decided to piggyback on something proven and reliable. Since RSP focuses on giving users a full-picture view of the system, we decided we needed a tool that provided system-wide reach to gather its data. That tool was \begin{tt}perf\end{tt}.
+When we started pondering ideas for how to gather data to create RSP, one of
+the first questions that arose was the one about data gathering: would we
+simply create a custom tool or would we use something that's already available?
+After researching the profiling landscape for 5 minutes, we found out that data
+collection was a really challenging task, so we decided to piggyback on
+something proven and reliable. Since RSP focuses on giving users a full-picture
+view of the system, tools such as \begin{tt}strace\end{tt} or
+\begin{tt}netstat\end{tt} where out of the question. We mainly explored two
+such tools: \begin{tt}perf\end{tt} and \begin{tt}lttng\end{tt}, which we
+discuss next.
 
-\subsection{lttng}
+\subsubsection{perf}
 
-\subsection{perf}
+\begin{tt}perf\end{tt}, also known as \begin{tt}perf\_events\end{tt} and
+\begin{tt}Linux Perf Events\end{tt}, compared to similar tools like ftrace or
+\begin{tt}lttng\end{tt}, has the advantage of being a mature and actively
+developed tool that can collect system-wide information in a combination of
+sample-based and event-based fashion.
 
-\begin{tt}perf\end{tt}, also known as \begin{tt}perf\_events\end{tt} and \begin{tt}Linux Perf Events\end{tt}, compared to similar tools like ftrace or lttng, has the advantage of being a mature and actively developed tool that can collect system-wide information in an event-oriented fashion: it is able to tap into hardware events like CPU cycles and memory cache misses; software events like CPU migrations and minor faults; as well as high-level behavior like system calls, TCP events, disk and file system I/O, etc. One can simply choose which kinds of events to track and \begin{tt}perf\end{tt} collects statistics on them. \begin{tt}perf\end{tt} can also filter or log specific system calls. Finally, one of \begin{tt}perf\end{tt}'s more important features as it relates to RSP is the ability to take kernel-space and user-space stacks.
+\begin{tt}perf\end{tt} can gather per-process performance counters like CPU
+cycles and memory cache misses; software events like CPU migrations and minor
+faults; as well as high-level behavior like system calls, TCP events, disk and
+file system I/O, etc. One can choose which kinds of events to track and
+\begin{tt}perf\end{tt} collects statistics on them.
 
-One other characteristic we needed in a tool was the confidence that it was  In addition to these characteristics, perf is part of the Linux kernel itself, so not much extra software is needed in order for one to start profiling applications.
+\begin{tt}perf\end{tt} also offers dynamic tracepoints, a feature that taps
+directly into symbols and registers when there is no debug information
+available and into function names and line numbers when there is.
+
+In addition to these characteristics,\begin{tt}perf\end{tt} is part of the
+Linux kernel itself, so not extra dependencies are needed in order to start
+profiling Linux applications.
+
+\subsubsection{lttng}
+
+Another system-wide data collection tool that caught our attention was
+\begin{tt}lttng\end{tt}. Even though \begin{tt}lttng\end{tt} is not as mature
+as \begin{tt}perf\end{tt} is, it offers features such as multiple simultaneous
+traces and a \emph{flight recorder} mode, in which data can be collected and
+analyzed in real-time.
+
+Much like \begin{tt}perf\end{tt}, \begin{tt}lttng\end{tt} can perform combined
+tracing of both kernel and user space processes to allow users to monitor
+tracepoints, CPU counters, functions and offers the ability to define
+dynamic tracepoints when those are not enough.
+
+Unlike \begin{tt}perf\end{tt}, however \begin{tt}lttng\end{tt} is not Linux
+kernel specific, and it provides what it calls a Common Trace Format (CTF),
+a format of data output that is Linux independent and that according to its
+designers, was designed to be streamed over the network for real time
+analysis.
+
+Finally, Since \begin{tt}lttng\end{tt} is not in the kernel, it requires the
+installation of separate packages.
+
+\subsubsection{Our choice}
+
+We decided to only target the Linux kernel with RSP since that is what we are
+familiar with. We felt \begin{tt}perf\end{tt} contained all the features we
+needed in this regard, the most important being its ability to
+seamlessly gather kernel-space and user-space stacks without any extra
+instrumentation (as is the case with \begin{tt}lttng\end{tt}).
+
+Another major point for \begin{tt}perf\end{tt} is that, thanks to being the
+ubiqutuous tool for Linux profiling, it contains vast amounts of
+documentation that we found invaluable.
 
 \section{Data Interpretation}
 Visualizations are at the heart of the Recursive Systemic Profiler when it comes to interpreting data. Not only do visualizations help to understand what's happening in a system in a shorter period of time compared to looking at plain old numbers, but they also show at-a-glance information that can easily be missed if this is not the case. After evaluating several approaches of data visualization for profilers, we felt the need to emulate the idea of flame graphs.
@@ -522,23 +585,29 @@ All our code is available at https://github.com/dspeyer/profiling
   http://squirrelmail.org/documentation/
 
 \bibitem{spatialtable}
-  Speyer, Lee and Hu,
+  Speyer, Lee and Hu.
   \emph{SpatialTable: A Distributed Spatial Database},
   Columbia Advanced Seminar on Distributed Systems,
   2015
 
 \bibitem{bigtable}
-  Chang et al,
+  Chang et al.
   \emph{Bigtable: a distributed storage system for structured data},
   OSDI,
   2006
 
 \bibitem{taoup}
-  Eric Raymond,
+  Eric Raymond.
   \emph{The Art of Unix Programming},
   Addison Wesley,
   2003
 
+\bibitem{lttng}
+  Desnoyers, Dagenais.
+  \emph{The LTTng tracer: A low impact performance and behavior monitor for
+  GNU/Linux},
+   In Linux Symposium,
+   2006
 
 \end{thebibliography}
 
