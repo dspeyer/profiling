@@ -2,6 +2,8 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{stfloats}
+\usepackage{caption}
+\usepackage{subcaption}
 \twocolumn
 \usepackage{graphicx}
 \usepackage[superscript,biblabel]{cite}
@@ -171,6 +173,27 @@ view of the system, tools such as \begin{tt}strace\end{tt} or
 such tools: \begin{tt}perf\end{tt} and \begin{tt}lttng\end{tt}, which we
 discuss next.
 
+\begin{figure*}
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{images/oncpu}
+\subcaption{On-CPU}\label{fig:1a}
+\end{minipage}%
+\hfill%
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{images/offcpu}
+\subcaption{Off-CPU}\label{fig:1b}
+\end{minipage}
+\hfill%
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{images/hotcold}
+\subcaption{Hot/Cold}\label{fig:1c}
+\end{minipage}
+\caption{Flame Graphs}\label{fig:flamegraph}
+\end{figure*}
+
 \subsubsection{perf}
 
 \begin{tt}perf\end{tt}, also known as \begin{tt}perf\_events\end{tt} and
@@ -261,18 +284,32 @@ overall slow hot-spots (represented by the width of the function calls in the
 stacks) and overall program structure.
 
 We drew our attention to three kinds of Flame Graphs: On-CPU, Off-CPU and
-Hot/Cold Graphs.
+Hot/Cold Graphs. Figure~\ref{fig:flamegraph} shows examples of these three 
+kind of flame graphs.
 
 On-CPU flame graphs are the ones that show a process and its threads spending
 time running on CPU.
 
 Conversely, Off-CPU flame graphs are the ones that show how a process waits.
+However, these kinds of graphs can be a little difficult to interpret, as they
+require tracing and interpretation of wake up events.
 
-The combination of those two is what's known as a Hot/Cold graph. This shows a
-more complete view because it displays what was happening at the time when the
-process was running as well as when it was waiting.
+The combination of those two is what's known as a Hot/Cold flame graph. This
+shows a more complete view because it displays what was happening at the time
+when the process was running as well as when it was waiting. Despite this, the
+combination of on and off CPU flame graphs can confusing to interpret because
+the sum of all threads sleeping is usually a lot bigger than the time spent
+doing work, therefore, as Figure~\ref{fig:1c}, the On-CPU part can get very
+narrow---but this could probably be addressed with zooming capabilities (which
+is the approach RSP takes).
 
 \subsection{TraceCompass}
+
+\begin{figure}[h]
+\includegraphics[width=3.25in]{images/tracecompass}
+\caption{TraceCompass}
+\label{fig:traceCompass}
+\end{figure}
 
 TraceCompass is a Java tool that uses lttng as its data collector and leverages
 the Eclipse framework to create a full-fledged data visualizer. Once lttng data
@@ -282,19 +319,16 @@ It is worth nothing that TraceCompass offers some a dizzying array of options
 and functionalities. But for the sake of our research, we focus on what makes
 it similar to RSP (which turns out to be the core of the program).
 
-There are three main components to TraceCompass.
-
-A Control Flow window, presented in a collapsable tree structure that makes it
-easy to see parent-child relationships that were part of the trace.
-
-A Visualization window, which is attached to the Control Flow window and where
-one can visualize processes (represented as blocks whose length are a function of
-the time the process ran) and their transitions.
-
-An Events window, where all raw event samples are displayed in a chronological
-order using a tabular format that is filterable on columns like the timestamp,
-the event name or the contents (like function arguments or return values in the
-case of a system call) of the event that were recorded.
+Figure~\ref{fig:traceCompass} shows TraceCompass' three main components: A
+Control Flow window (top left) presented in a collapsable tree structure that
+makes it easy to see parent-child relationships that were part of the trace. A
+Visualization window (top right), which is attached to the Control Flow window
+and where one can visualize processes (represented as blocks whose length are a
+function of the time the process ran) and their transitions. And a scrollable
+Events window (bottom), where all raw event samples are displayed in a
+chronological order using a tabular format that is filterable on columns like
+the timestamp, the event name or the contents (like function arguments or
+return values in the case of a system call) of the event that were recorded.
 
 In addition to this, TraceCompass also offers a statistics view for seeing the
 counters or percentage distribution of various events that happened during trace.
@@ -336,7 +370,7 @@ Our examples here use a toy program called ``pass''.  Pass forks two processes, 
 The first view is the Process Running View.  It uses an x axis of time and a y axis of processes.  Each run is a block bar, and each link is drawn as a line between them.
 
 \begin{figure}[h!]
-\includegraphics[width=3.2in]{screenshot}
+\includegraphics[width=3.2in]{images/screenshot}
 \caption{The Process Running View}
 \end{figure}
 
@@ -349,7 +383,7 @@ Clicking on a process name opens a Flame View for that process.
 The Flame View takes a single process and shows all associated processes, organized into control paths.  Each control path is treated as a series of pseudostacks, and each layer of each pseudostack is drawn as its stack.  This presents the concept of a single stack of functions stretching across multiple processes, which is a pretty good fit for how many programs are actually designed.
 
 \begin{figure}[h!]
-\includegraphics[width=3.2in]{flameshot}
+\includegraphics[width=3.2in]{images/flameshot}
 \caption{The Chronological Flame View}
 \end{figure}
 
@@ -366,7 +400,7 @@ The consolidated flame view is similar to the original flame view, except that a
 Because children are allowed to overlap their parents slightly, the higher stack frames can be significantly longer than the lower ones.  Lower ones are spaced apart as needed to allow for this.
 
 \begin{figure}[h!]
-\includegraphics[width=3.2in]{passcons}
+\includegraphics[width=3.2in]{images/passcons}
 \caption{The Consolidated Flame View}
 \end{figure}
 
@@ -429,7 +463,7 @@ Sometimes the \begin{tt}block:block\_rq\_issue\end{tt} event is not fired.  When
 Network operations do not fit perfectly into our model.  A write event followed by a wakeup event produces an operation with links to both runs.  If more read events follow, the operation is regarded as longer, and has multiple outlinks.  Writes which are not followed by reads do not produce operations.  For example, if a browser contructs a very large HTTP request and sends it by multiple \begin{tt}tcp\_sendmsg\end{tt} calls, the loops receiving the response which arrives in several packets, the network operation will stretch from the last write to the last read -- the time for which it is reasonable to say ``the server was doing work that our process could be waiting for''.  Figure \ref{fig:tcp} may make this clearer. 
 
 \begin{figure}[h!]
-\includegraphics[width=3.2in]{tcpexample}
+\includegraphics[width=3.2in]{images/tcpexample}
 \caption{A TCP operation with multiple wakeups}
 \label{fig:tcp}
 \end{figure}
@@ -573,7 +607,7 @@ Adding this case makes Squirrelmail well-explained.
 
 \subsubsection{Scheduler overhead}
 \begin{figure}[b!]
-\includegraphics[width=3.2in]{5cumugraph}
+\includegraphics[width=3.2in]{images/5cumugraph}
 \caption{Cumulative Percentage Explained}
 \label{fig:resgraph}
 \end{figure}
@@ -664,6 +698,39 @@ https://github.com/dspeyer/profiling
 \raggedright
 \begin{thebibliography}{9}
 
+\bibitem{perfwiki}
+  \emph{Perf wiki}
+  https://perf.wiki.kernel.org/index.php/Tutorial
+  
+\bibitem{lttng}
+  Desnoyers, Dagenais.
+  \emph{The LTTng tracer: A low impact performance and behavior monitor for
+  GNU/Linux},
+   In Linux Symposium,
+   2006
+
+\bibitem{oncpu}
+  Brendan Gregg.
+  \emph{On-CPU Flame Graphs},
+   2014,
+   http://brendangregg.com/FlameGraphs/cpuflamegraphs.html 
+   
+\bibitem{offcpu}
+  Brendan Gregg.
+  \emph{Off-CPU Flame Graphs},
+   2014,
+   http://brendangregg.com/FlameGraphs/offcpuflamegraphs.html
+   
+\bibitem{hotcold}
+  Brendan Gregg.
+  \emph{Hot/Cold Flame Graphs},
+   2014,
+   http://brendangregg.com/FlameGraphs/hotcoldflamegraphs.html
+   
+\bibitem{traceCompass}
+  \emph{TraceCompass User Guide}
+  http://archive.eclipse.org/tracecompass/doc/stable/org.eclipse.tracecompass.doc.user/User-Guide.html
+
 \bibitem{squirrelmail}
   \emph{Squirrelmail Documentation},
   http://squirrelmail.org/documentation/
@@ -687,7 +754,6 @@ https://github.com/dspeyer/profiling
   2003,
   http://www.catb.org/esr/writings/taoup/html/
 
-\bibitem{lttng}
   Desnoyers and Dagenais.
   \emph{The LTTng tracer: A low impact performance and behavior monitor for
   GNU/Linux},
@@ -717,13 +783,13 @@ https://github.com/dspeyer/profiling
 \vspace{1in}
 
 \begin{figure}[h]
-\includegraphics[width=6.5in]{curlBeforeAndAfter}
+\includegraphics[width=6.5in]{images/curlBeforeAndAfter}
 \caption{Curl DNS worker thread handling, before and after the fix}
 \label{fig:curl}
 \end{figure}
 
 \begin{figure}[p]
-\includegraphics[width=6.5in]{squirrelbest}
+\includegraphics[width=6.5in]{images/squirrelbest}
 \caption{The complete squirrelmail flamegraph}
 \label{fig:sq}
 \end{figure}
