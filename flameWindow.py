@@ -223,6 +223,10 @@ class FlameWindow(AppWindow):
         if box.type=='run':
             self.procsSeen[box.proc]=1
         isNewCp=False
+        if 'cutstart' in d.__dict__:
+            cutstart=d.cutstart
+        else:
+            cutstart=box.start
         if box.proc==self.target:
             d.cpSameAs=None
             d.parent=None
@@ -232,7 +236,7 @@ class FlameWindow(AppWindow):
             d.parent=None
             self.roots[-1].append(box)
             isNewCp=True
-        elif box.start+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
+        elif cutstart+grace<self.de_facto_start(parent) or box.end-grace>parent.end:
             if box.start+grace<self.de_facto_start(parent):
                 parent.wdata[self.id].asyncstart = box
             else:
