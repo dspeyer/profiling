@@ -266,6 +266,41 @@ process was running as well as when it was waiting.
 
 \subsection{TraceCompass}
 
+TraceCompass is a Java tool that uses lttng as its data collector and leverages
+the Eclipse framework to create a full-fledged data visualizer. Once lttng data
+has been collected, one can start visualizing it in an interactive manner.
+
+It is worth nothing that TraceCompass offers some a dizzying array of options
+and functionalities. But for the sake of our research, we focus on what makes
+it similar to RSP (which turns out to be the core of the program).
+
+There are three main components to TraceCompass.
+
+A Control Flow window, presented in a collapsable tree structure that makes it
+easy to see parent-child relationships that were part of the trace.
+
+A Visualization window, which is attached to the Control Flow window and where
+one can visualize processes (represented as blocks whose length are a function of
+the time the process ran) and their transitions.
+
+An Events window, where all raw event samples are displayed in a chronological
+order using a tabular format that is filterable on columns like the timestamp,
+the event name or the contents (like function arguments or return values in the
+case of a system call) of the event that were recorded.
+
+In addition to this, TraceCompass also offers a statistics view for seeing the
+counters or percentage distribution of various events that happened during trace.
+
+TraceCompass suffers from the drawbacks of other visualizers. First, it is not
+able to smartly connect data very well. For example, if a process gets blocked
+on a mutex, that process and the provider of the mutex won’t be connected.
+Second, since application stack frames are not present in the visualization
+itself, it is rather hard to interpret, as one has to go back and forth between
+the three windows to make sense of the information. Finally, since events in
+the Events window are laid out in a simple chronological manner, it is not easy
+to make sense of processes with high degrees of parallelism because other
+events interfere.
+
 \section{Recursive Systemic Profiler}
 
 The Recursive Systemic Profiler is designed to measure all the activities that contribute to the running time of a program.  It is ``systemic'' in that it records everything that takes place on the system and ``recursive'' in that it starts from a process of interest, then considers processes that was waiting for, and processes those were waiting for, and so on.
