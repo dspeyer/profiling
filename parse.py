@@ -172,7 +172,7 @@ def parse(fn):
                 print "ERROR: %s switched out twice (%f and %f)"%(oldp,ev.time,switchedout[oldp])
             else:
                 switchedout[oldp]=ev.time
-                if ev.stack[-1].function=='[unknown]' and ev.stack[-1].file=='[unknown]':
+                if ev.stack and ev.stack[-1].function=='[unknown]' and ev.stack[-1].file=='[unknown]':
                     ev.stack=ev.stack[:-1]
                 if oldp in lastlibc:
                     if ev.stack[-1].function==lastlibc[oldp].function and ev.stack[-1].file=='/lib/x86_64-linux-gnu/libc-2.19.so':
