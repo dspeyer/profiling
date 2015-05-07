@@ -170,8 +170,8 @@ collection was a really challenging task, so we decided to piggyback on
 something proven and reliable. Since RSP focuses on giving users a full-picture
 view of the system, tools such as \begin{tt}strace\end{tt} or
 \begin{tt}netstat\end{tt} where out of the question. We mainly explored two
-such tools: \begin{tt}perf\end{tt} and \begin{tt}lttng\end{tt}, which we
-discuss next.
+such tools: \begin{tt}perf\end{tt}\cite{perfwiki} and \begin{tt}lttng\end{tt}
+\cite{lttng}, which we discuss next.
 
 \begin{figure*}
 \begin{minipage}[b]{.3\linewidth}
@@ -221,8 +221,8 @@ profiling Linux applications.
 Another system-wide data collection tool that caught our attention was
 \begin{tt}lttng\end{tt}. Even though \begin{tt}lttng\end{tt} is not as mature
 as \begin{tt}perf\end{tt} is, it offers features such as multiple simultaneous
-traces and a \emph{flight recorder} mode, in which data can be collected and
-analyzed in real-time.
+traces and a \emph{flight recorder} mode\cite{lttngLwn}, in which data can be
+collected and analyzed in real-time.
 
 Much like \begin{tt}perf\end{tt}, \begin{tt}lttng\end{tt} can perform combined
 tracing of both kernel and user space processes to allow users to monitor
@@ -250,7 +250,7 @@ Another major point for \begin{tt}perf\end{tt} is that, thanks to being the
 ubiqutuous tool for Linux profiling, it contains vast amounts of
 documentation that we found invaluable.
 
-\section{Data Visualization}
+\section{Data Visualizers}
 
 Visualizations are at the heart of the Recursive Systemic Profiler. Not only do
 visualizations help us understand what's happening in a system in a shorter
@@ -258,21 +258,23 @@ period of time compared to reading plain text output, but they also show at-a
 glance information that can easily be overlooked when analyzing raw perf or lttng
 stack and event traces.
 
+\subsection{Current Tools}
+
 There are a few data visualization tools currently available, both commercial and
 non-commercial. We focus on the non-commercial options since they're the ones we
 can afford. In particular, we explore two different tools. The first one is Flame
-Graphs, which is a direct translation from the data collected by perf, and the
+Graphs, which is a direct translation of raw perf output, and the
 second one is TraceCompass, a more robust, full-fledged Java application for
 visualizing lttng data.
 
-\subsection{Flame Graphs}
+\subsubsection{Flame Graphs}
 
-Flame Graphs, a visualization tool invented by Brendan Gregg, are a simple way to
-visualize profile data through stack traces. Stack traces contain the names of
-the functions being executed by the CPU at any given time. The information that
-the stack traces contain can vary depending on the kinds of process being
-analyzed, the events one requests to be notified of, or the duration of the
-profiling.
+Flame Graphs, a visualization tool invented by Brendan
+Gregg\cite{brendanGregg}, are a simple way to visualize profile data through
+stack traces. Stack traces contain the names of the functions being executed by
+the CPU at any given time. The information that the stack traces contain can
+vary depending on the kinds of process being analyzed, the events one requests
+to be notified of, or the duration of the profiling.
 
 One of the key characteristics of flame graphs is that they present their
 information in a hierarchical, stack-like manner, in such a way that one can
@@ -283,9 +285,9 @@ Flame graphs also have the characteristic of being able to show at a glance
 overall slow hot-spots (represented by the width of the function calls in the
 stacks) and overall program structure.
 
-We drew our attention to three kinds of Flame Graphs: On-CPU, Off-CPU and
-Hot/Cold Graphs. Figure~\ref{fig:flamegraph} shows examples of these three 
-kind of flame graphs.
+We drew our attention to three kinds of Flame Graphs: On-CPU\cite{oncpu},
+Off-CPU\cite{offcpu} and Hot/Cold Graphs\cite{hotcold}.
+Figure~\ref{fig:flamegraph} shows examples of these three kind of flame graphs.
 
 On-CPU flame graphs are the ones that show a process and its threads spending
 time running on CPU.
@@ -303,7 +305,7 @@ doing work, therefore, as Figure~\ref{fig:1c}, the On-CPU part can get very
 narrow---but this could probably be addressed with zooming capabilities (which
 is the approach RSP takes).
 
-\subsection{TraceCompass}
+\subsubsection{TraceCompass}
 
 \begin{figure}[h]
 \includegraphics[width=3.25in]{images/tracecompass}
@@ -311,9 +313,10 @@ is the approach RSP takes).
 \label{fig:traceCompass}
 \end{figure}
 
-TraceCompass is a Java tool that uses lttng as its data collector and leverages
-the Eclipse framework to create a full-fledged data visualizer. Once lttng data
-has been collected, one can start visualizing it in an interactive manner.
+TraceCompass\cite{traceCompass} is a Java tool that uses lttng as its data
+collector and leverages the Eclipse framework to create a full-fledged data
+visualizer. Once lttng data has been collected, one can start visualizing it in
+an interactive manner.
 
 It is worth nothing that TraceCompass offers some a dizzying array of options
 and functionalities. But for the sake of our research, we focus on what makes
@@ -709,7 +712,7 @@ All our code is available at https://github.com/dspeyer/profiling
 \bibitem{perfwiki}
   \emph{Perf wiki}
   https://perf.wiki.kernel.org/index.php/Tutorial
-  
+
 \bibitem{lttng}
   Desnoyers and Dagenais.
   \emph{The LTTng tracer: A low impact performance and behavior monitor for
@@ -717,24 +720,33 @@ All our code is available at https://github.com/dspeyer/profiling
    In Linux Symposium,
    2006
 
+\bibitem{lttngLwn}
+  \emph{LTTng 2.0: Tracing for power users and developers},
+  2012,
+  http://lwn.net/Articles/491510/
+
+\bibitem{brendanGregg}
+  Brendan Gregg.
+  \emph{Brendan Gregg's blog},
+
 \bibitem{oncpu}
   Brendan Gregg.
   \emph{On-CPU Flame Graphs},
    2014,
    http://brendangregg.com/FlameGraphs/cpuflamegraphs.html 
-   
+
 \bibitem{offcpu}
   Brendan Gregg.
   \emph{Off-CPU Flame Graphs},
    2014,
    http://brendangregg.com/FlameGraphs/offcpuflamegraphs.html
-   
+
 \bibitem{hotcold}
   Brendan Gregg.
   \emph{Hot/Cold Flame Graphs},
    2014,
    http://brendangregg.com/FlameGraphs/hotcoldflamegraphs.html
-   
+
 \bibitem{traceCompass}
   \emph{TraceCompass User Guide}
   http://archive.eclipse.org/tracecompass/doc/stable/org.eclipse.tracecompass.doc.user/User-Guide.html
