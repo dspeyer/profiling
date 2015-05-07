@@ -22,10 +22,12 @@ def unitify(t):
         return (1e9*t, 'ns')
 
 class ConsolidatedWindow(AppWindow):
-    def __init__(self, data, cps, flameId, target, fn):
+    def __init__(self, data, cps, flameId, target, fn, mergethreads=False):
         AppWindow.__init__(self, 0, 1, fn) # We'll reset these later
+        self.mergethreads=mergethreads
         self.window.set_title('Consolidated Flame View: %s [%s]' % (target,fn))
         self.data = data
+        self.cps = cps
         self.flameId=flameId
         self.target=target
         self.wallstart=float('inf')
@@ -64,6 +66,10 @@ class ConsolidatedWindow(AppWindow):
         ss=gtk.Button('Save Stats')
         ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2, 'txt')
         self.toolbar.add(ss)
+
+        mt=gtk.Button('Merge Threads')
+        mt.connect('clicked', self.make_merge_threads)
+        self.toolbar.add(mt)
 
         self.rectmargin = 2
 
@@ -135,6 +141,8 @@ class ConsolidatedWindow(AppWindow):
             return box.iotype + ' of '+box.dev
         elif box.type == 'queue':
             return box.iotype + ' of '+box.dev + ' '
+        elif self.mergethreads:
+            return box.proc.split('(')[0]
         else:
             return box.proc
 
@@ -264,3 +272,5 @@ class ConsolidatedWindow(AppWindow):
     def physFromLogY(self, logY):
         return  (self.lheight-logY-1)*self.rowheight
 
+    def make_merge_threads(self, widget):
+        ConsolidatedWindow(self.data, self.cps, self.flameId, self.target, self.fn, True)
