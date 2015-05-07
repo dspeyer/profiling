@@ -219,13 +219,50 @@ Another major point for \begin{tt}perf\end{tt} is that, thanks to being the
 ubiqutuous tool for Linux profiling, it contains vast amounts of
 documentation that we found invaluable.
 
-\section{Data Interpretation}
-Visualizations are at the heart of the Recursive Systemic Profiler when it comes to interpreting data. Not only do visualizations help to understand what's happening in a system in a shorter period of time compared to looking at plain old numbers, but they also show at-a-glance information that can easily be missed if this is not the case. After evaluating several approaches of data visualization for profilers, we felt the need to emulate the idea of flame graphs.
+\section{Data Visualization}
+
+Visualizations are at the heart of the Recursive Systemic Profiler. Not only do
+visualizations help us understand what's happening in a system in a shorter
+period of time compared to reading plain text output, but they also show at-a
+glance information that can easily be overlooked when analyzing raw perf or lttng
+stack and event traces.
+
+There are a few data visualization tools currently available, both commercial and
+non-commercial. We focus on the non-commercial options since they're the ones we
+can afford. In particular, we explore two different tools. The first one is Flame
+Graphs, which is a direct translation from the data collected by perf, and the
+second one is TraceCompass, a more robust, full-fledged Java application for
+visualizing lttng data.
 
 \subsection{Flame Graphs}
-Flame Graphs, a visualization tool invented by Brendan Gregg, are a simple way to visualize profile data through stack traces. Stack traces contain the names of the functions being executed by the CPU at any given time. The information that the stack traces contain can vary depending on the kinds of process being analyzed, the events one requests to be notified of, or the duration of the profiling. Flame graphs present this information in a hierarchical, stack-like manner, in such a way that one can easily tell which stacks of functions were caused by which other stacks of functions, in a pleasant but informative manner.
 
-Flame graphs also have the characteristic of being able to show at a glance overall slow hot-spots (represented by the width of the function calls in the stacks) and overall program structure.
+Flame Graphs, a visualization tool invented by Brendan Gregg, are a simple way to
+visualize profile data through stack traces. Stack traces contain the names of
+the functions being executed by the CPU at any given time. The information that
+the stack traces contain can vary depending on the kinds of process being
+analyzed, the events one requests to be notified of, or the duration of the
+profiling.
+
+One of the key characteristics of flame graphs is that they present their
+information in a hierarchical, stack-like manner, in such a way that one can
+easily tell which stacks frames were triggered by which other stacks frames,
+making it easy to see what's going on once one gets accustomed to the format.
+
+Flame graphs also have the characteristic of being able to show at a glance
+overall slow hot-spots (represented by the width of the function calls in the
+stacks) and overall program structure.
+
+We drew our attention to three kinds of Flame Graphs: On-CPU, Off-CPU and
+Hot/Cold Graphs.
+
+On-CPU flame graphs are the ones that show a process and its threads spending
+time running on CPU.
+
+Conversely, Off-CPU flame graphs are the ones that show how a process waits.
+
+The combination of those two is what's known as a Hot/Cold graph. This shows a
+more complete view because it displays what was happening at the time when the
+process was running as well as when it was waiting.
 
 \subsection{TraceCompass}
 
