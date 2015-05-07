@@ -350,13 +350,15 @@ events interfere.
 \section{Recursive Systemic Profiler}
 
 The Recursive Systemic Profiler addresses most of the drawbacks of FlameGraphs
-and TraceCompass. Its primary feature is that it is designed to measure all the
-activities that contribute to the running time of a program, but most
-importantly, it is able to make sense of the data and connect it in an
-intelligent way. It is ``systemic'' in that it records everything that takes
-place on the system and ``recursive'' in that it starts from a process of
-interest, then considers processes that was waiting for, and processes those
-were waiting for, and so on.
+and TraceCompass. Its primary feature is that it can measure all relevant
+activities that contribute to the running time of a program and connect them in
+an intelligent way. This allows it to offer a more insightful view at what's
+happening in a system than raw profiler output and even other visualizers.
+
+RSP is ``systemic'' in that it records everything that takes place on the
+system and ``recursive'' in that it starts from a process of interest, then
+considers processes that was waiting for, and processes those were waiting for,
+and so on.
 
 The building blocks the profiler works with are runs, sleeps, links and
 samples.  A run is a contiguous block of time during which a process is
