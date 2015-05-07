@@ -688,22 +688,30 @@ Also, the system would benefit from more robustness.  Dropped events in the perf
 
 Feature-wise, the system could handle work the process of interest kicks off and \emph{doesn't} wait for.  Also, it would be valuable to spread across multiple nodes and create a single integrated profile, matching incoming and outgoing network requests.
 
+\onecolumn
+
 \section{Code}
 
-All our code is available at \\
-https://github.com/dspeyer/profiling
+All our code is available at https://github.com/dspeyer/profiling
 
 \section{References}
 
 \raggedright
 \begin{thebibliography}{9}
 
+\bibitem{lbr}
+  Ingo Molnar.
+  \emph{perf updates for v4.1},
+  Linux Kernel Mailing List,
+  2015,
+  https://lkml.org/lkml/2015/4/14/232
+
 \bibitem{perfwiki}
   \emph{Perf wiki}
   https://perf.wiki.kernel.org/index.php/Tutorial
   
 \bibitem{lttng}
-  Desnoyers, Dagenais.
+  Desnoyers and Dagenais.
   \emph{The LTTng tracer: A low impact performance and behavior monitor for
   GNU/Linux},
    In Linux Symposium,
@@ -754,20 +762,6 @@ https://github.com/dspeyer/profiling
   2003,
   http://www.catb.org/esr/writings/taoup/html/
 
-  Desnoyers and Dagenais.
-  \emph{The LTTng tracer: A low impact performance and behavior monitor for
-  GNU/Linux},
-   In Linux Symposium,
-   2006
-
-\bibitem{lbr}
-  Ingo Molnar.
-  \emph{perf updates for v4.1},
-  Linux Kernel Mailing List,
-  2015,
-  https://lkml.org/lkml/2015/4/14/232
-	
-
 \bibitem{pb}
   Kenton Varda.
   \emph{Protocol Buffers: Google's Data Interchange Format},
@@ -776,7 +770,6 @@ https://github.com/dspeyer/profiling
 \end{thebibliography}
 
 \newpage
-\onecolumn
 
 \section{Appendix: Large Figures}
 
