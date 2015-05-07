@@ -168,19 +168,19 @@ discuss next.
 \begin{figure*}
 \begin{minipage}[b]{.3\linewidth}
 \centering%
-\includegraphics[width=150pt]{oncpu}
+\includegraphics[width=150pt]{images/oncpu}
 \subcaption{On-CPU}\label{fig:1a}
 \end{minipage}%
 \hfill%
 \begin{minipage}[b]{.3\linewidth}
 \centering%
-\includegraphics[width=150pt]{offcpu}
+\includegraphics[width=150pt]{images/offcpu}
 \subcaption{Off-CPU}\label{fig:1b}
 \end{minipage}
 \hfill%
 \begin{minipage}[b]{.3\linewidth}
 \centering%
-\includegraphics[width=150pt]{hotcold}
+\includegraphics[width=150pt]{images/hotcold}
 \subcaption{Hot/Cold}\label{fig:1c}
 \end{minipage}
 \caption{Flame Graphs}\label{fig:flamegraph}
@@ -356,7 +356,7 @@ Our examples here use a toy program called ``pass''.  Pass forks two processes, 
 The first view is the Process Running View.  It uses an x axis of time and a y axis of processes.  Each run is a block bar, and each link is drawn as a line between them.
 
 \begin{figure}[h]
-\includegraphics[width=3.25in]{screenshot}
+\includegraphics[width=3.25in]{images/screenshot}
 \caption{The Process Running View}
 \end{figure}
 
@@ -369,7 +369,7 @@ Clicking on a process name opens a Flame View for that process.
 The Flame View takes a single process and shows all associated processes, organized into control paths.  Each control path is treated as a series of pseudostacks, and each layer of each pseudostack is drawn as its stack.  This presents the concept of a single stack of functions stretching across multiple processes, which is a pretty good fit for how many programs are actually designed.
 
 \begin{figure}[h]
-\includegraphics[width=3.25in]{flameshot}
+\includegraphics[width=3.25in]{images/flameshot}
 \caption{The Chronological Flame View}
 \end{figure}
 
@@ -386,7 +386,7 @@ The consolidated flame view is similar to the original flame view, except that a
 Because children are allowed to overlap their parents slightly, the higher stack frames can be significantly longer than the lower ones.  Lower ones are spaced apart as needed to allow for this.
 
 \begin{figure}[h]
-\includegraphics[width=3.25in]{passcons}
+\includegraphics[width=3.25in]{images/passcons}
 \caption{The Consolidated Flame View}
 \end{figure}
 
@@ -449,7 +449,7 @@ Sometimes the \begin{tt}block:block\_rq\_issue\end{tt} event is not fired.  When
 Network operations do not fit perfectly into our model.  A write event followed by a wakeup event produces an operation with links to both runs.  If more read events follow, the operation is regarded as longer, and has multiple outlinks.  Writes which are not followed by reads do not produce operations.  For example, if a browser contructs a very large HTTP request and sends it by multiple \begin{tt}tcp\_sendmsg\end{tt} calls, the loops receiving the response which arrives in several packets, the network operation will stretch from the last write to the last read -- the time for which it is reasonable to say ``the server was doing work that our process could be waiting for''.  Figure \ref{fig:tcp} may make this clearer. 
 
 \begin{figure}[h]
-\includegraphics[width=3.25in]{tcpexample}
+\includegraphics[width=3.25in]{images/tcpexample}
 \caption{A TCP operation with multiple wakeups}
 \label{fig:tcp}
 \end{figure}
@@ -591,7 +591,7 @@ Adding this case makes Squirrelmail well-explained.
 
 \subsubsection{Scheduler overhead}
 \begin{figure}[b!]
-\includegraphics[width=3.25in]{5cumugraph}
+\includegraphics[width=3.25in]{images/5cumugraph}
 \caption{Cumulative Percentage Explained}
 \label{fig:resgraph}
 \end{figure}
@@ -713,13 +713,13 @@ All our code is available at https://github.com/dspeyer/profiling
 
 
 \begin{figure*}[p]
-\includegraphics[width=6.5in]{curlBeforeAndAfter}
+\includegraphics[width=6.5in]{images/curlBeforeAndAfter}
 \caption{Curl DNS worker thread handling, before and after the fix}
 \label{fig:curl}
 \end{figure*}
 
 \begin{figure*}[p]
-\includegraphics[width=6.5in]{squirrelbest}
+\includegraphics[width=6.5in]{images/squirrelbest}
 \caption{The complete squirrelmail flamegraph}
 \label{fig:sq}
 \end{figure*}
