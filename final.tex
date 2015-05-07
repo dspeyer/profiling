@@ -114,14 +114,33 @@ and missing a single one produces a user-noticeable glitch.
 We'll return to these scenarios when we evaluate our system.
 
 \section{Data Collectors}
+
 \subsection{Overview}
-In order to understand how a system is performing, one first need to collect data. There are several open source profiling tools that focus on this task. We can classify them in three different groups by the approach they use to collect information: event-based, sample-based and a combination of both. 
 
-Event-based tools work by instrumenting programs: they insert marks at different points of a system and trigger an event when the profiled application runs into them. These events can in turn trigger predefined data-collection actions as simple as incrementing counters, but they can also perform more complicated tasks like saving stack dumps for later analysis or generating some kind of logging.
+In order to understand how a system is performing, we first need to collect
+data. There are several open source profiling tools that focus on this task. We
+can classify them in three different groups by the approach they use to collect
+information: event-based, sample-based and a combination of both.
 
-Sample-based tools work by collecting samples of programs at regular intervals.  Samples can come in the form of performance counters, stack traces, or something else of relevance that is already available at the operating system level. These kinds of profilers are typically less accurate than event-based profilers since they rely on samples, but they since they don't introduce the overhead of generating events, they are usually less intrusive with respect with the profiled application.
+Event-based tools work by instrumenting programs: they insert marks at
+different points of a system and trigger an event when the profiled application
+runs into them. These events can in turn trigger predefined data-collection
+actions as simple as incrementing counters, but they can also perform more
+complicated tasks like saving stack dumps for later analysis or generating some
+kind of logging.
 
-A third approach combines event-based and sample-based profiling.
+Sample-based tools work by collecting samples of programs every certain number
+of ticks, as predefined by the user. Samples can come in the form of
+performance counters, stack traces, or something of relevance that is already
+available at the operating system level. These kinds of profilers are
+typically less accurate than event-based profilers because they rely on
+samples, but since they don't introduce the overhead of generating events as
+event-based tools do, they are usually less intrusive performance-wise to the
+profiled application.
+
+A third approach combines event-based and sample-based profiling. Instead of
+collecting samples every certain number of ticks, these profilers get a sample
+after a predefined number of occurrences of some event.
 
 \subsection{Current Tools}
 
