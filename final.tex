@@ -6,9 +6,14 @@
 \usepackage{graphicx}
 \usepackage[superscript,biblabel]{cite}
 
+\flushbottom
+
 \author{Daniel Speyer\\dls2192@columbia.edu \and Johan Mena\\j.mena@columbia.edu}
 \title{\textbf{A Recursive Systemic Profiler}}
 \date{}
+
+\usepackage{array}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
 
 \begin{document}
 
@@ -25,7 +30,10 @@ even addressing issues that were previously unknown. The standard tools for
 gathering data about processes are profilers, which measure where processes
 spend their time while running. However, most profilers measure things like
 CPU, memory or system calls independently, but more often than not,
-optimizations are a combination of all these metrics. We propose and implement
+optimizations are a combination of all these metrics. Furthermore,
+most profilers either observe a single process or the entire system,
+while most tasks of interest involve many -- but not all --
+co-operating processes. We propose and implement
 a Recursive Systemic Profiler (RSP) a tool that can intelligently interconnect
 different metrics and provide visualizations that give programmers a more
 complete view of their systems.
@@ -78,7 +86,7 @@ What is it waiting on? How can I improve it?
 
 \section{Motivating Examples}
 
-The guiding principle of our system is that looking at one process is not
+The guiding principle of RSP is that looking at one process is not
 enough. To that end, here are five scenarios in which that is true.
 
 The classic design of a web application has separate processes for web server,
@@ -111,7 +119,7 @@ transforms, and in some cases decoding. Performance in video is a
 particularly interesting problem as it experiences hard deadlines every 16ms,
 and missing a single one produces a user-noticeable glitch.
 
-We'll return to these scenarios when we evaluate our system.
+We'll return to these scenarios when we evaluate our work.
 
 \section{Data Collectors}
 
@@ -309,7 +317,7 @@ The building blocks the profiler works with are runs, sleeps, links and samples.
 
 \subsection{Pseudo-stacks and Control Paths}
 
-A set of runs connected only by transfer links can be called a ``control path''.
+A set of connected runs with negligible overlap can be called a ``control path''.  Conceptually, this is a single series of tasks.
 
 One common pattern is for one process to transfer control to another, and then the other to transfer control back.  Both transfers could be tcp messages, as in the case of making a synchronous rpc request to a database, or one could be a \begin{tt}fork\end{tt} syscall and the other a \begin{tt}wait\end{tt} syscall terminated by the other's exit.  In these cases, it is fairly reasonable to think of the first transfer as a ``function call'' and the second as a ``return''.
 
@@ -327,8 +335,8 @@ Our examples here use a toy program called ``pass''.  Pass forks two processes, 
 
 The first view is the Process Running View.  It uses an x axis of time and a y axis of processes.  Each run is a block bar, and each link is drawn as a line between them.
 
-\begin{figure}[h]
-\includegraphics[width=3.25in]{screenshot}
+\begin{figure}[h!]
+\includegraphics[width=3.2in]{screenshot}
 \caption{The Process Running View}
 \end{figure}
 
@@ -340,8 +348,8 @@ Clicking on a process name opens a Flame View for that process.
 
 The Flame View takes a single process and shows all associated processes, organized into control paths.  Each control path is treated as a series of pseudostacks, and each layer of each pseudostack is drawn as its stack.  This presents the concept of a single stack of functions stretching across multiple processes, which is a pretty good fit for how many programs are actually designed.
 
-\begin{figure}[h]
-\includegraphics[width=3.25in]{flameshot}
+\begin{figure}[h!]
+\includegraphics[width=3.2in]{flameshot}
 \caption{The Chronological Flame View}
 \end{figure}
 
@@ -357,8 +365,8 @@ The consolidated flame view is similar to the original flame view, except that a
 
 Because children are allowed to overlap their parents slightly, the higher stack frames can be significantly longer than the lower ones.  Lower ones are spaced apart as needed to allow for this.
 
-\begin{figure}[h]
-\includegraphics[width=3.25in]{passcons}
+\begin{figure}[h!]
+\includegraphics[width=3.2in]{passcons}
 \caption{The Consolidated Flame View}
 \end{figure}
 
@@ -386,7 +394,7 @@ The response events attach not to the read syscalls, but to the kernel routines 
 
 \subsubsection{Stacks}
 
-Perf has native stackwalking support built into the event structure.  It crosses the kernelspace/userspace boundary with no difficulty.  It does, however, fail against frame pointer optimization.  While it is sometimes practical to recompile code without it, recompiling the entire system is not.  As an alternative, perf offers libunwind, also known as ``dwarf'', which uses a variety of heuristics to find parent frames.  This is more reliable, but still cannot trace all stacks.  Another solution is in the works based on the Last Branch Record register of the Haswell microarchitecture, but that is hardware-specific and not yet merged into the mainline kernel.
+Perf has native stackwalking support built into the event structure.  It crosses the kernelspace/userspace boundary with no difficulty.  It does, however, fail against frame pointer optimization.  While it is sometimes practical to recompile code without it, recompiling the entire system is not.  As an alternative, perf offers libunwind, also known as ``dwarf'', which uses a variety of heuristics to find parent frames.  This is more reliable, but still cannot trace all stacks.  Another solution is in the works based on the Last Branch Record register of the Haswell microarchitecture, but that is hardware-specific and not yet merged into the mainline kernel.\cite{lbr}
 
 We found a less elegant workaround for the most common cases.
 
@@ -398,11 +406,11 @@ As an added complication, perf refuses to create userspace events for ``weak'' s
 
 \subsection{Assembling Pieces}
 
-Once we have a stream of relevant events with sufficient attributes and stacks, the next step is to assemble them into a set of ``boxes'' and links between them.  A box is a generic concept useful to visualization: a thing which can reasonably be drawn as a single rectangle.  It can be anything with a beginning, an end, and a single nature.
+Once we have a stream of relevant events with sufficient attributes and stacks, the next step is to assemble them into a set of ``operations'' and links between them.  An operation is a generic concept useful to visualization: a thing which can reasonably be drawn as a single rectangle.  It can be anything with a beginning, an end, and a single nature.
 
 \subsubsection{Runs and Sleeps}
 
-The simplest blocks are ``runs'' and ``sleeps'', which represent contiguous blocks of time in which a given process was either running or not running.  Every \begin{tt}sched:sched\_switch\end{tt} event ends one process's run and begins its sleep, while doing the opposite for another process.  Similarly, \begin{tt}sched:sched\_process\_exec\end{tt} ends one process's run and begins another's, with no sleeps involved (the two processes have the same PID, but we track them as separate.
+The simplest operations are ``runs'' and ``sleeps'', which represent contiguous blocks of time in which a given process was either running or not running.  Every \begin{tt}sched:sched\_switch\end{tt} event ends one process's run and begins its sleep, while doing the opposite for another process.  Similarly, \begin{tt}sched:sched\_process\_exec\end{tt} ends one process's run and begins another's, with no sleeps involved (the two processes have the same PID, but we track them as separate.
 
 When a \begin{tt}cycles\end{tt} events (from the sampling profiler) is encountered, we check if the process it shows is running or was in the past $20 \mu$s.  If so, we attach it to that run.  If not, we drop it with a warning.  Why \begin{tt}cycles\end{tt} events continue to arrive for a process so long after it has switched remains unclear, but it is a common occurrence.  Presumably some aspect of the sampler runs asynchronously.
 
@@ -420,8 +428,8 @@ Sometimes the \begin{tt}block:block\_rq\_issue\end{tt} event is not fired.  When
 
 Network operations do not fit perfectly into our model.  A write event followed by a wakeup event produces an operation with links to both runs.  If more read events follow, the operation is regarded as longer, and has multiple outlinks.  Writes which are not followed by reads do not produce operations.  For example, if a browser contructs a very large HTTP request and sends it by multiple \begin{tt}tcp\_sendmsg\end{tt} calls, the loops receiving the response which arrives in several packets, the network operation will stretch from the last write to the last read -- the time for which it is reasonable to say ``the server was doing work that our process could be waiting for''.  Figure \ref{fig:tcp} may make this clearer. 
 
-\begin{figure}[h]
-\includegraphics[width=3.25in]{tcpexample}
+\begin{figure}[h!]
+\includegraphics[width=3.2in]{tcpexample}
 \caption{A TCP operation with multiple wakeups}
 \label{fig:tcp}
 \end{figure}
@@ -430,7 +438,9 @@ In any case, network events are matched by socket address (that's memory address
 
 \subsubsection{Interrupts and Preemption}
 
-Wakeup events can be identified as interrupts if the departing stack contains either \begin{tt}do\_IRQ\end{tt} or\\ \begin{tt}apic\_timer\_interrupt\end{tt}.  For interrupts, we do not make a link between the processes, but instead make a link between the two runs of the interrupted process that have the interrupt in between them.  This link is marked as ``horizontal'', because it does not correspond to a change of stack layer.
+Wakeup events can be identified as interrupts if the departing stack
+contains either the function \begin{tt}do\_IRQ\end{tt} or the
+  function \begin{tt}apic\_timer\_interrupt\end{tt}.  For interrupts, we do not make a link between the processes, but instead make a link between the two runs of the interrupted process that have the interrupt in between them.  This link is marked as ``horizontal'', because it does not correspond to a change of stack layer.
 
 \subsubsection{Wakeups}
 
@@ -440,7 +450,7 @@ Links are created not only from wakeup events, but also from fork and exec.
 
 Assembling pseudostacks and control paths is a single procedure.  First, we declare all runs of the process of interest to be in the base control path.  Then for each of them try to make the thing which woke it a child of the sleep that preceded it.  This succeeds if the run starts at most 100$\mu$s before the de facto start of the sleep, and ends at most 100$\mu$s after the sleep ends.  
 
-To compute de facto start times, we consider all consecutive sleeps -- with the same stack, separated by runs of less than 100$\mu$s, such that all but the last end in timeouts -- to be a single sleep.  This handles the common pattern of \begin{tt}while (!done) { poll( with timeout ); trivial\_timeout\_processing(); }\end{tt}.
+To compute de facto start times, we consider all consecutive sleeps -- with the same stack, separated by runs of less than 100$\mu$s, such that all but the last end in timeouts -- to be a single sleep.  This handles the common pattern of \begin{tt}while (!done) \{ poll( with timeout ); trivial\_timeout\_processing(); \}\end{tt}.
 
 We allow the child to overlap its parent slightly because this is a very common pattern in multicore environments.
 
@@ -465,7 +475,7 @@ In the flamegraphs, adjacent stack elements are unified so long as there is noth
 \section{Evalutation}
 
 \begin{figure*}[t]
-\begin{tabular}{r|ccccc}
+\begin{tabular}{r|C{1in}cccc}
 Category & squirrelmail & xterm launch & spatialtable & make & mplayer\\
 Processes & 18 & 13 & 133 & 12 & 17\\
 \hline
@@ -517,7 +527,7 @@ As an example of a distributed database, we used SpatialTable\cite{spatialtable}
 
 \subsubsection{make}
 
-We ran make for a protobuf object file.  First it invoked protoc to create the h and cpp files, then g++ to turn those into a .o file.  We cleared Linux's file cache before running make to ensure a reasonable mix of cpu and disk.
+We ran make for a protobuf object file.\cite{pb}  First it invoked protoc to create the h and cpp files, then g++ to turn those into a .o file.  We cleared Linux's file cache before running make to ensure a reasonable mix of cpu and disk.
 
 \subsubsection{mplayer}
 
@@ -563,7 +573,7 @@ Adding this case makes Squirrelmail well-explained.
 
 \subsubsection{Scheduler overhead}
 \begin{figure}[b!]
-\includegraphics[width=3.25in]{5cumugraph}
+\includegraphics[width=3.2in]{5cumugraph}
 \caption{Cumulative Percentage Explained}
 \label{fig:resgraph}
 \end{figure}
@@ -582,7 +592,7 @@ These are waits do to pre-emption or interrupt handling.
 
 There are various syscalls that block without blocking on anything we trace.  The most common of these is the kernel routine which moves processes from one CPU to another.
 
-If this ever accounted for a large fraction of total time, it would suggest another case to be added to our system.
+If this ever accounted for a large fraction of total time, it would suggest another case to be added to RSP.
 
 \subsubsection{Waits that timed out}
 
@@ -600,7 +610,7 @@ This is displayed as time spent in our UI and in the table, but is subtracted fr
 
 \subsection{Practical Results}
 
-Producing lots of data is well and good, but can our profiler produce information that useful to developers?  Here are three cases where it can.
+Producing lots of data is well and good, but can RSP produce information that useful to developers?  Here are three cases where it can.
 
 \subsubsection{curl}
 
@@ -624,7 +634,7 @@ A screenshot of the full visualization follows as figure \ref{fig:sq}
 
 In some ways, SpatialTable is the simplest of our test cases.  The number of processes is large, but the time is spent on the cpu and there is only one control path.  SpatialTable is also the only one of our test cases for which we were genuinely motivated to improve its performance.
 
-SpatialTable's codebase contains many unnecessary data copies and other inefficient idioms.  Our profiler revealed that none of these mattered.  Instead of wasting time fixing them, the SpatialTable team concentrated exclusively on algorithmic optimizations.  With good reason it has been said that the important role of a profiler is not to help you optimize the 10\% of the code that needs it, but to help you \emph{not} optimize the 90\% that doesn't\cite{taoup}.  On this test, our system is a great success.
+SpatialTable's codebase contains many unnecessary data copies and other inefficient idioms.  RSP revealed that none of these mattered.  Instead of wasting time fixing them, the SpatialTable team concentrated exclusively on algorithmic optimizations.  With good reason it has been said that the important role of a profiler is not to help you optimize the 10\% of the code that needs it, but to help you \emph{not} optimize the 90\% that doesn't\cite{taoup}.  On this test, RSP is a great success.
 
 \section{Future Work}
 
@@ -640,16 +650,18 @@ As well as a few bugs still in the code.
 
 At a higher level, a more thorough handling of the ``waiting on other path'' state would be valuable.  So would spreading across multiple nodes in a distributed system.
 
-Also, the system would benefit from more robustness.  Dropped events in the perf log can leave our system in a very confused state.  Also, while this does not happen often, a single wakeup from an unrelated process (perhaps because multiple requests to a server run into each other) can backchain into a lot of unrelated material in the trace.
+Also, the system would benefit from more robustness.  Dropped events in the perf log can leave RSP in a very confused state.  Also, while this does not happen often, a single wakeup from an unrelated process (perhaps because multiple requests to a server run into each other) can backchain into a lot of unrelated material in the trace.
 
 Feature-wise, the system could handle work the process of interest kicks off and \emph{doesn't} wait for.  Also, it would be valuable to spread across multiple nodes and create a single integrated profile, matching incoming and outgoing network requests.
 
 \section{Code}
 
-All our code is available at https://github.com/dspeyer/profiling
+All our code is available at \\
+https://github.com/dspeyer/profiling
 
 \section{References}
 
+\raggedright
 \begin{thebibliography}{9}
 
 \bibitem{squirrelmail}
@@ -672,28 +684,48 @@ All our code is available at https://github.com/dspeyer/profiling
   Eric Raymond.
   \emph{The Art of Unix Programming},
   Addison Wesley,
-  2003
+  2003,
+  http://www.catb.org/esr/writings/taoup/html/
 
 \bibitem{lttng}
-  Desnoyers, Dagenais.
+  Desnoyers and Dagenais.
   \emph{The LTTng tracer: A low impact performance and behavior monitor for
   GNU/Linux},
    In Linux Symposium,
    2006
 
+\bibitem{lbr}
+  Ingo Molnar.
+  \emph{perf updates for v4.1},
+  Linux Kernel Mailing List,
+  2015,
+  https://lkml.org/lkml/2015/4/14/232
+	
+
+\bibitem{pb}
+  Kenton Varda.
+  \emph{Protocol Buffers: Google's Data Interchange Format},
+  2008,
+  http://google-opensource.blogspot.com/2008/07/protocol-buffers-googles-data.html
 \end{thebibliography}
 
+\newpage
+\onecolumn
 
-\begin{figure*}[p]
+\section{Appendix: Large Figures}
+
+\vspace{1in}
+
+\begin{figure}[h]
 \includegraphics[width=6.5in]{curlBeforeAndAfter}
 \caption{Curl DNS worker thread handling, before and after the fix}
 \label{fig:curl}
-\end{figure*}
+\end{figure}
 
-\begin{figure*}[p]
+\begin{figure}[p]
 \includegraphics[width=6.5in]{squirrelbest}
 \caption{The complete squirrelmail flamegraph}
 \label{fig:sq}
-\end{figure*}
+\end{figure}
 
 \end{document}
