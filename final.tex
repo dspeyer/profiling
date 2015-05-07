@@ -2,6 +2,8 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{stfloats}
+\usepackage{caption}
+\usepackage{subcaption}
 \twocolumn
 \usepackage{graphicx}
 \usepackage[superscript,biblabel]{cite}
@@ -163,6 +165,27 @@ view of the system, tools such as \begin{tt}strace\end{tt} or
 such tools: \begin{tt}perf\end{tt} and \begin{tt}lttng\end{tt}, which we
 discuss next.
 
+\begin{figure*}
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{oncpu}
+\subcaption{On-CPU}\label{fig:1a}
+\end{minipage}%
+\hfill%
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{offcpu}
+\subcaption{Off-CPU}\label{fig:1b}
+\end{minipage}
+\hfill%
+\begin{minipage}[b]{.3\linewidth}
+\centering%
+\includegraphics[width=150pt]{hotcold}
+\subcaption{Hot/Cold}\label{fig:1c}
+\end{minipage}
+\caption{Flame Graphs}\label{fig:flamegraph}
+\end{figure*}
+
 \subsubsection{perf}
 
 \begin{tt}perf\end{tt}, also known as \begin{tt}perf\_events\end{tt} and
@@ -253,16 +276,24 @@ overall slow hot-spots (represented by the width of the function calls in the
 stacks) and overall program structure.
 
 We drew our attention to three kinds of Flame Graphs: On-CPU, Off-CPU and
-Hot/Cold Graphs.
+Hot/Cold Graphs. Figure~\ref{fig:flamegraph} shows examples of these three 
+kind of flame graphs.
 
 On-CPU flame graphs are the ones that show a process and its threads spending
 time running on CPU.
 
 Conversely, Off-CPU flame graphs are the ones that show how a process waits.
+However, these kinds of graphs can be a little difficult to interpret, as they
+require tracing and interpretation of wake up events.
 
-The combination of those two is what's known as a Hot/Cold graph. This shows a
-more complete view because it displays what was happening at the time when the
-process was running as well as when it was waiting.
+The combination of those two is what's known as a Hot/Cold flame graph. This
+shows a more complete view because it displays what was happening at the time
+when the process was running as well as when it was waiting. Despite this, the
+combination of on and off CPU flame graphs can confusing to interpret because
+the sum of all threads sleeping is usually a lot bigger than the time spent
+doing work, therefore, as Figure~\ref{fig:1c}, the On-CPU part can get very
+narrow---but this could probably be addressed with zooming capabilities (which
+is the approach RSP takes).
 
 \subsection{TraceCompass}
 
@@ -274,19 +305,16 @@ It is worth nothing that TraceCompass offers some a dizzying array of options
 and functionalities. But for the sake of our research, we focus on what makes
 it similar to RSP (which turns out to be the core of the program).
 
-There are three main components to TraceCompass.
-
-A Control Flow window, presented in a collapsable tree structure that makes it
-easy to see parent-child relationships that were part of the trace.
-
-A Visualization window, which is attached to the Control Flow window and where
-one can visualize processes (represented as blocks whose length are a function of
-the time the process ran) and their transitions.
-
-An Events window, where all raw event samples are displayed in a chronological
-order using a tabular format that is filterable on columns like the timestamp,
-the event name or the contents (like function arguments or return values in the
-case of a system call) of the event that were recorded.
+There are three main components to TraceCompass: A Control Flow window,
+presented in a collapsable tree structure that makes it easy to see
+parent-child relationships that were part of the trace. A Visualization window,
+which is attached to the Control Flow window and where one can visualize
+processes (represented as blocks whose length are a function of the time the
+process ran) and their transitions. An Events window, where all raw event
+samples are displayed in a chronological order using a tabular format that is
+filterable on columns like the timestamp, the event name or the contents (like
+function arguments or return values in the case of a system call) of the event
+that were recorded.
 
 In addition to this, TraceCompass also offers a statistics view for seeing the
 counters or percentage distribution of various events that happened during trace.
