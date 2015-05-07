@@ -78,17 +78,38 @@ What is it waiting on? How can I improve it?
 
 \section{Motivating Examples}
 
-The guiding principle of our system is that looking at one process is not enough.  To that end, here are five scenarios in which that is true.
+The guiding principle of our system is that looking at one process is not
+enough. To that end, here are five scenarios in which that is true.
 
-The classic design of a web app has separate processes for web server, application server and storage backend.  Sometimes the web server is divided into a base server and a cgi script, and sometimes there are multiple storage backends.  Every request therefore touches numerous systems, but a single engineering team is responsible for end-to-end performance.
+The classic design of a web application has separate processes for web server,
+application server and storage backend. Sometimes the web server is divided
+into a base server and a cgi script, and sometimes there are multiple storage
+backends. Every request therefore touches numerous systems, but a single
+engineering team is responsible for end-to-end performance.
 
-Launching any new process in X11 will involve interactions of the process, the X server, the window manager, and possibly the composition manager.  These interactions can be quite complex.  For example, the application may wish to store its icons in X's memory.  This is also a case in which a merely systemic profiler will fail, as it is inevitable that the X server will do \emph{unrelated} work while the launch is taking place.
+Launching any new process in X11 will involve interactions of the process, the
+X server, the window manager, and possibly the composition manager. These
+interactions can be quite complex. For example, the application may wish to
+store its icons in X's memory. This is also a case in which a merely systemic
+profiler will fail, as it is inevitable that the X server will do
+\emph{unrelated} work while the launch is taking place.
 
-Any distributed database, by its nature, will involve a large number of processes.  It is generally possible to run them all on the same host, but getting useful performance data from so many threads remains a challenge.
+Any distributed database, by nature, will involve a large number of processes.
+It is generally possible to run them all on the same host, but getting useful
+performance data from several threads simultaneously remains a challenge.
 
-Compilation of any complex project is often frustratingly slow and also notoriously difficult to profile, owing to the large number of short-lived processes.
+Compilation of any complex project is often frustratingly slow and also
+notoriously difficult to profile, owing to the large number of short-lived
+processes and the substantial combined amount of time.
 
-Playing video requires the interaction of the video player, X server, window manager and composition manager as described in the launch case, as well as the sound system (\begin{tt}pulseaudio\end{tt} and \begin{tt}alsa-sink\end{tt}, at least on our test system).  In addition, the video player interacts directly with the video card, using hardware-accelerated resizes, subpicture mixes, colorspace transforms, and in some cases decoding.  Performance in video is a particularly interesting problem as it experiences hard deadlines every 16ms, and missing a single one produces a user-noticeable glitch.
+Playing video requires the interaction of the video player, X server, window
+manager and composition manager as described in the launch case, as well as the
+sound system (\begin{tt}pulseaudio\end{tt} and \begin{tt}alsa-sink\end{tt} on
+our test system). In addition, the video player interacts directly with the
+video card, using hardware-accelerated resizes, subpicture mixes, colorspace
+transforms, and in some cases decoding. Performance in video is a
+particularly interesting problem as it experiences hard deadlines every 16ms,
+and missing a single one produces a user-noticeable glitch.
 
 We'll return to these scenarios when we evaluate our system.
 
