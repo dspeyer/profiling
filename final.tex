@@ -170,7 +170,7 @@ collection was a really challenging task, so we decided to piggyback on
 something proven and reliable. Since RSP focuses on giving users a full-picture
 view of the system, tools such as \begin{tt}strace\end{tt} or
 \begin{tt}netstat\end{tt} where out of the question. We mainly explored two
-such tools: \begin{tt}perf\end{tt}\cite{perfwiki} and \begin{tt}lttng\end{tt}
+such tools: \begin{tt}perf\end{tt}\cite{perfwiki}\cite{perfbg} and \begin{tt}lttng\end{tt}
 \cite{lttng}, which we discuss next.
 
 \begin{figure*}
@@ -197,7 +197,7 @@ such tools: \begin{tt}perf\end{tt}\cite{perfwiki} and \begin{tt}lttng\end{tt}
 \subsubsection{perf}
 
 \begin{tt}perf\end{tt}, also known as \begin{tt}perf\_events\end{tt} and
-\begin{tt}Linux Perf Events\end{tt}, compared to similar tools like ftrace or
+``Linux Perf Events'', compared to similar tools like \begin{tt}ftrace\end{tt} or
 \begin{tt}lttng\end{tt}, has the advantage of being a mature and actively
 developed tool that can collect system-wide information in a combination of
 sample-based and event-based fashion.
@@ -212,7 +212,7 @@ file system I/O, etc. One can choose which kinds of events to track and
 directly into symbols and registers when there is no debug information
 available and into function names and line numbers when there is.
 
-In addition to these characteristics,\begin{tt}perf\end{tt} is part of the
+In addition to these characteristics, \begin{tt}perf\end{tt} is part of the
 Linux kernel itself, so not extra dependencies are needed in order to start
 profiling Linux applications.
 
@@ -513,7 +513,7 @@ In the flamegraphs, adjacent stack elements are unified so long as there is noth
 
 \begin{figure*}[t]
 \begin{tabular}{r|C{.77in}C{.8in}C{.77in}C{.77in}C{.77in}}
-Category & Squirrelmail & xterm launch & spatialtable & make & MPlayer\\
+Category & Squirrelmail & xterm launch & SpatialTable & make & MPlayer\\
 Processes & 18 & 13 & 133 & 12 & 17\\
 \hline
 Wall time & 265 & 315 & 74 & 4438 & 2180\\
@@ -558,9 +558,9 @@ XTerm is a minimalist application, but still has reasonably complex interactions
 
 For the graph (\ref{fig:resgraph}) but not the table (\ref{fig:restab}) we removed the 200ms that sleep spends waiting for a timeout from that category, on the logic that we regard timeouts as ``poorly explained'', but the one from a sleep statement is explained perfectly.
 
-\subsubsection{spatialtable}
+\subsubsection{SpatialTable}
 
-As an example of a distributed database, we used SpatialTable\cite{spatialtable}, a proof-of-concept research project modeled on Google's bigtable\cite{bigtable}.  We chose this database because we were already highly familiar with it.  We ran a single tabletserver with 128 worker threads and a single-threaded benchmark to ensure load.  We measured in the middle to avoid setup functions.
+As an example of a distributed database, we used SpatialTable\cite{SpatialTable}, a proof-of-concept research project modeled on Google's bigtable\cite{bigtable}.  We chose this database because we were already highly familiar with it.  We ran a single tabletserver with 128 worker threads and a single-threaded benchmark to ensure load.  We measured in the middle to avoid setup functions.
 
 \subsubsection{make}
 
@@ -623,7 +623,7 @@ These are waits which terminate with the receipt of an interrupt.  We place the 
 
 \subsubsection{Involuntary sleeps}
 
-These are waits do to pre-emption or interrupt handling.
+These are waits due to pre-emption or interrupt handling.
 
 \subsubsection{Miscellaneous kernel blocks}
 
@@ -651,7 +651,7 @@ Producing lots of data is well and good, but can RSP produce information that us
 
 \subsubsection{curl}
 
-The first surprise looking at the Squirrelmail test case was a 5ms wait that timeout out in curl.  More measurements of curl alone demonstrated this was consistent: curl forks a worker thread for dns lookups and then polls slowly to see if it has finished.  No ordinary profiler would have detected this.  The code that actually ran was exactly correct.  Even the wait stack was reasonable.  And when the parent process finished waiting, the data it was waiting for was there.  The only problem was the child thread didn't write into the parent's poll.  Only by observing the mechanism by which the parent process exited the poll could this be detected.
+The first surprise looking at the Squirrelmail test case was a 5ms wait that timed out in curl.  More measurements of curl alone demonstrated this was consistent: curl forks a worker thread for dns lookups and then polls slowly to see if it has finished.  No ordinary profiler would have detected this.  The code that actually ran was exactly correct.  Even the wait stack was reasonable.  And when the parent process finished waiting, the data it was waiting for was there.  The only problem was the child thread didn't write into the parent's poll.  Only by observing the mechanism by which the parent process exited the poll could this be detected.
 
 Fixing the problem required only twenty lines of code, which took a few hours to write (for a programmer completely unfamiliar with the curl codebase).  All curl invocations are now almost 5ms faster.  The exact changes are shown in figure \ref{fig:curl}
 
@@ -659,37 +659,36 @@ The curl maintainers rejected the patch because it isn't compatible with Microso
 
 \subsubsection{Squirrelmail}
 
-Naively, one might think Squirrelmail's chain of operations was ``browser sends tcp to web server forks php interpreter sends tcp to imap server returns data''.  In fact, the php interpreter is built into apache (at least in our configuration) and the imap server (dovecot) is rather more complex.  It calls to two other programs: imap and imap-login, the latter of which calls a program called ``auth''.
+Naively, one might think Squirrelmail's chain of operations was ``browser sends tcp to web server forks php interpreter sends tcp to imap server returns data''.  In fact, the php interpreter is built into apache (at least in our configuration) and the imap server (\begin{tt}dovecot\end{tt}) is rather more complex.  It calls to two other programs: \begin{tt}imap\end{tt} and \begin{tt}imap-login\end{tt}, the latter of which calls a program called \begin{tt}auth\end{tt}.
 
-In fact, auth is where roughly half of the time to produce the webpage is spent.  Of that, one third is spent in computation, mostly sha512, and the rest is spent syncing disks.
+In fact, \begin{tt}auth\end{tt} is where roughly half of the time to produce the webpage is spent.  Of that, one third is spent in computation, mostly sha512, and the rest is spent syncing disks.
 
-In is unlikely that anyone would guess that most of the time in reading an inbox was spent syncing disk as part of an authentication routine.  Nor can it be easily imagined that any other tool would allow us to discover this.  Furthermore, it seems likely (without looking at auth) that the syncs are unnecessary, and performance could be significantly improved.
+In is unlikely that anyone would guess that most of the time in reading an inbox was spent syncing disk as part of an authentication routine.  Nor can it be easily imagined that any other tool would allow us to discover this, as \begin{tt}auth\end{tt} appears completely unrelated until the chain of wakeups is traced.  Furthermore, it seems likely (without looking at \begin{tt}auth\end{tt}) that the syncs are unnecessary, and performance could be significantly improved.
 
 A screenshot of the full visualization follows as figure \ref{fig:sq}
 
 \subsubsection{SpatialTable}
 
-In some ways, SpatialTable is the simplest of our test cases.  The number of processes is large, but the time is spent on the cpu and there is only one control path.  SpatialTable is also the only one of our test cases for which we were genuinely motivated to improve its performance.
+In some ways, SpatialTable is the simplest of our test cases.  The number of processes is large, but the time is spent on the cpu and there is only one control path.  Nevertheless, profiling so many processes with an ordinary profiler would be difficult. SpatialTable is also the only one of our test cases for which we were genuinely motivated to improve its performance.
 
 SpatialTable's codebase contains many unnecessary data copies and other inefficient idioms.  RSP revealed that none of these mattered.  Instead of wasting time fixing them, the SpatialTable team concentrated exclusively on algorithmic optimizations.  With good reason it has been said that the important role of a profiler is not to help you optimize the 10\% of the code that needs it, but to help you \emph{not} optimize the 90\% that doesn't\cite{taoup}.  On this test, RSP is a great success.
 
 \section{Future Work}
 
-There are some specific features that would be useful:
+There are some specific tasks that would be useful:
 
 \begin{itemize}
 \item File names for disk I/O
 \item Remote host and port pair for networking
 \item Distinguish deliberate sleeps from other timeouts
+\item Various outstanding bugfixes
 \end{itemize}
 
-As well as a few bugs still in the code.
-
-At a higher level, a more thorough handling of the ``waiting on other path'' state would be valuable.  So would spreading across multiple nodes in a distributed system.
+At a higher level, a more thorough handling of the ``waiting on other path'' state would be valuable.
 
 Also, the system would benefit from more robustness.  Dropped events in the perf log can leave RSP in a very confused state.  Also, while this does not happen often, a single wakeup from an unrelated process (perhaps because multiple requests to a server run into each other) can backchain into a lot of unrelated material in the trace.
 
-Feature-wise, the system could handle work the process of interest kicks off and \emph{doesn't} wait for.  Also, it would be valuable to spread across multiple nodes and create a single integrated profile, matching incoming and outgoing network requests.
+Feature-wise, the system could handle work the process of interest kicks off and \emph{doesn't} wait for.  Also, it would be valuable to spread across multiple nodes of a network and create a single integrated profile, matching incoming and outgoing network requests.
 
 
 \section{Code}
@@ -705,6 +704,11 @@ All our code is available at https://\hspace{0pt}github.com/\hspace{0pt}dspeyer/
 \bibitem{perfwiki}
   \emph{Perf wiki}
   https://\hspace{0pt}perf.wiki.kernel.org/\hspace{0pt}index.php/\hspace{0pt}Tutorial
+
+\bibitem{perfbg}
+  Brendan Gregg.
+  \emph{perf Examples},
+  http://www.brendangregg.com/\hspace{0pt}perf.html
 
 \bibitem{lttng}
   Desnoyers and Dagenais.
@@ -755,7 +759,7 @@ All our code is available at https://\hspace{0pt}github.com/\hspace{0pt}dspeyer/
   \emph{Squirrelmail Documentation},
   http://\hspace{0pt}Squirrelmail.org/\hspace{0pt}documentation/\hspace{0pt}
 
-\bibitem{spatialtable}
+\bibitem{SpatialTable}
   Speyer, Lee and Hu.
   \emph{SpatialTable: A Distributed Spatial Database},
   Columbia Advanced Seminar on Distributed Systems,
