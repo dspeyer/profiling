@@ -62,6 +62,7 @@ class ConsolidatedWindow(AppWindow):
         self.addEmpty(self.root)
         self.height=self.lheight * self.rowheight
         self.endtime = self.root.time+self.root.extra
+        self.endtimelabels = self.endtime
 
         ss=gtk.Button('Save Stats')
         ss.connect('clicked', self.get_filename_and_callback, self.stats_part_2, 'txt')
